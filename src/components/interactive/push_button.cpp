@@ -2,6 +2,7 @@
 
 PushButton::PushButton(string name, double x, double y) : Component(name, x, y) {
     addPin(0, 0);
+    pins[0].isOutput = true;
 }
 
 void PushButton::press() {

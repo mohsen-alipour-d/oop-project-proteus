@@ -4,6 +4,7 @@ Battery::Battery(string name, double x, double y, double value) : Component(name
     this->value = value;
     addPin(0, -10);
     addPin(0, 10);
+    pins[0].isOutput = true;
 }
 
 void Battery::step(double dt, double simTime) {

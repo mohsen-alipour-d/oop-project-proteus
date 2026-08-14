@@ -14,6 +14,7 @@ public:
     Pin* endPin = nullptr;
     bool isSelected = false;
     int netId = -1;
+    int id = -1;
 
     Wire() {}
     Wire(Pin* start, Pin* end);

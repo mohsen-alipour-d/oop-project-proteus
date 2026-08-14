@@ -5,6 +5,7 @@
 ClockGenerator::ClockGenerator(string name, double x, double y, double period) : Component(name, x, y) {
     this->period = period;
     addPin(0, 0);
+    pins[0].isOutput = true;
 }
 
 void ClockGenerator::step(double dt, double simTime) {

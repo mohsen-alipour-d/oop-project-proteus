@@ -6,6 +6,7 @@ LogicGate::LogicGate(string name, double x, double y, int inputCount) : Componen
     for (int i = 0; i < inputCount; i++)
         addPin(-20, i * 10 - (inputCount - 1) * 5);
     addPin(20, 0);
+    pins.back().isOutput = true;
 }
 
 void LogicGate::step(double dt, double simTime) {

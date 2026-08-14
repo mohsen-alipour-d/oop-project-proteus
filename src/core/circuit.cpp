@@ -1,4 +1,5 @@
 #include "circuit.h"
+#include "../components/digital/logic_level.h"
 
 static int ufFind(vector<int>& parent, int i) {
     while (parent[i] != i) {
@@ -36,6 +37,7 @@ void Circuit::clear() {
 
 void Circuit::addComponent(Component* c) {
     c->host = this;
+    c->id = nextComponentId++;
     components.push_back(c);
 }
 
@@ -79,6 +81,7 @@ void Circuit::removeComponent(Component* c) {
 
 Wire* Circuit::addWire(Pin* a, Pin* b) {
     Wire* w = new Wire(a, b);
+    w->id = nextWireId++;
     wires.push_back(w);
     rebuildNets();
     return w;
@@ -258,4 +261,29 @@ Wire* Circuit::findWireAt(const Vector2D& pos, double tol) {
             return w;
     }
     return nullptr;
+}
+void Circuit::propagateVoltages() {
+    for (Net* n : nets) {
+        double v = 0;
+        bool has = false;
+        bool conflict = false;
+        for (Pin* p : n->pins) {
+            if (!p->isOutput)
+                continue;
+            if (!has) {
+                v = p->voltage;
+                has = true;
+            } else if (voltageToLogic(p->voltage) != voltageToLogic(v)) {
+                conflict = true;
+            }
+        }
+        if (conflict)
+            n->voltage = UNDEFINED_VOLT;
+        else if (has)
+            n->voltage = v;
+        else
+            continue;
+        for (Pin* p : n->pins)
+            p->voltage = n->voltage;
+    }
 }

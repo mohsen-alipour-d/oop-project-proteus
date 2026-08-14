@@ -15,6 +15,8 @@ public:
     vector<Wire*> wires;
     vector<Junction*> junctions;
     vector<Net*> nets;
+    int nextComponentId = 0;
+    int nextWireId = 0;
 
     Circuit() {}
     ~Circuit();
@@ -29,6 +31,7 @@ public:
     void refreshWires();
     void rebuildNets();
     bool hasGround();
+    void propagateVoltages();
     Pin* findPinAt(const Vector2D& pos, double tol);
     Wire* findWireAt(const Vector2D& pos, double tol);
 };

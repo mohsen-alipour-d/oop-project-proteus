@@ -19,6 +19,7 @@ public:
     bool mirroredV = false;
     bool isGround = false;
     Circuit* host = nullptr;
+    int id = -1;
     vector<Pin> pins;
 
     Component() {}

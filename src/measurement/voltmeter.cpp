@@ -12,7 +12,7 @@ void Voltmeter::step(double dt, double simTime) {
         hasError = true;
         return;
     }
-    if (!pins[0].connected && !pins[1].connected) {
+    if (!pins[0].connected || !pins[1].connected) {
         hasError = true;
         return;
     }

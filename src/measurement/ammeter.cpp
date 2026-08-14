@@ -1,13 +1,27 @@
 #include "ammeter.h"
 
+#include "../core/circuit.h"
+#include "../wiring/net.h"
+
 Ammeter::Ammeter(string name, double x, double y) : Component(name, x, y) {
     addPin(-10, 0);
     addPin(10, 0);
 }
 
 void Ammeter::step(double dt, double simTime) {
-    if (pins[0].connected)
-        reading = pins[0].current;
-    else
-        reading = 0.0;
+    reading = 0;
+    if (!pins[0].connected || !pins[1].connected)
+        return;
+    if (!host)
+        return;
+    for (Net* n : host->nets) {
+        if (!n->hasPin(&pins[0]))
+            continue;
+        for (Pin* p : n->pins) {
+            if (p->owner != this && p->current != 0) {
+                reading = p->current;
+                return;
+            }
+        }
+    }
 }

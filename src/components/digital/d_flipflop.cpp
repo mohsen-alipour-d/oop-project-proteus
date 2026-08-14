@@ -6,6 +6,7 @@ DFlipFlop::DFlipFlop(string name, double x, double y) : Component(name, x, y) {
     addPin(-20, -10);
     addPin(-20, 10);
     addPin(20, 0);
+    pins[2].isOutput = true;
 }
 
 void DFlipFlop::step(double dt, double simTime) {

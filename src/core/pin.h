@@ -14,6 +14,8 @@ public:
     double voltage = 0.0;
     double current = 0.0;
     bool connected = false;
+    bool isOutput = false;
+    int id = -1;
     Component* owner = nullptr;
 
     Pin() {}

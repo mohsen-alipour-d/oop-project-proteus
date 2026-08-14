@@ -4,6 +4,7 @@ DCSource::DCSource(string name, double x, double y, double value) : Component(na
     this->value = value;
     addPin(0, -10);
     addPin(0, 10);
+    pins[0].isOutput = true;
 }
 
 void DCSource::step(double dt, double simTime) {
