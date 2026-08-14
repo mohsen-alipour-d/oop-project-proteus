@@ -8,6 +8,8 @@
 
 using namespace std;
 
+class Circuit;
+
 class Component {
 public:
     string name;
@@ -15,6 +17,8 @@ public:
     int rotation = 0;
     bool mirroredH = false;
     bool mirroredV = false;
+    bool isGround = false;
+    Circuit* host = nullptr;
     vector<Pin> pins;
 
     Component() {}

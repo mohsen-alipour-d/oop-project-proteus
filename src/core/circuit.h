@@ -27,6 +27,7 @@ public:
     Junction* addJunctionAt(const Vector2D& pos);
     void refreshWires();
     void rebuildNets();
+    bool hasGround();
     Pin* findPinAt(const Vector2D& pos, double tol);
     Wire* findWireAt(const Vector2D& pos, double tol);
 };

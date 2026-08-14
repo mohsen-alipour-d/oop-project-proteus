@@ -3,6 +3,7 @@
 #include "core/component.h"
 #include "core/circuit.h"
 #include "components/sources/dc_source.h"
+#include "components/sources/ground.h"
 #include "components/passive/resistor.h"
 #include "measurement/voltage_probe.h"
 #include "measurement/voltmeter.h"
@@ -13,8 +14,10 @@ using namespace std;
 
 int main() {
     Circuit circuit;
+    Ground g("GND1", 0, 40);
     DCSource src("V1", 0, 0, 5);
     Resistor res("R1", 60, 0, 100);
+    circuit.addComponent(&g);
     circuit.addComponent(&src);
     circuit.addComponent(&res);
 
@@ -36,7 +39,8 @@ int main() {
     cout << "probe at src+ " << probe.read(circuit, src.pins[0].worldPos()) << endl;
     cout << "probe floating " << probe.isFloating(circuit, Vector2D(1000, 1000)) << endl;
 
-    Voltmeter vm("VM1", 0, 40);
+    Voltmeter vm("VM1", 0, 80);
+    circuit.addComponent(&vm);
     vm.pins[0].voltage = 5;
     vm.pins[1].voltage = 0;
     vm.pins[0].connected = true;
@@ -44,7 +48,8 @@ int main() {
     vm.step(0.01, 0);
     cout << "voltmeter " << vm.reading << " err " << vm.hasError << endl;
 
-    Ammeter am("AM1", 0, 80);
+    Ammeter am("AM1", 0, 120);
+    circuit.addComponent(&am);
     am.pins[0].current = 0.05;
     am.pins[0].connected = true;
     am.step(0.01, 0);

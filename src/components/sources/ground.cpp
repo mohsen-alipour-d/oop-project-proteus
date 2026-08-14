@@ -1,6 +1,7 @@
 #include "ground.h"
 
 Ground::Ground(string name, double x, double y) : Component(name, x, y) {
+    isGround = true;
     addPin(0, 0);
 }
 

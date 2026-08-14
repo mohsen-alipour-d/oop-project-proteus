@@ -25,6 +25,7 @@ Circuit::~Circuit() {
 }
 
 void Circuit::addComponent(Component* c) {
+    c->host = this;
     components.push_back(c);
 }
 
@@ -49,12 +50,20 @@ void Circuit::removeComponent(Component* c) {
             j->removeWire(w);
         delete w;
     }
+    for (int i = 0; i < (int)junctions.size(); i++) {
+        if (junctions[i]->wires.empty()) {
+            delete junctions[i];
+            junctions.erase(junctions.begin() + i);
+            i--;
+        }
+    }
     for (int i = 0; i < (int)components.size(); i++) {
         if (components[i] == c) {
             components.erase(components.begin() + i);
             break;
         }
     }
+    c->host = nullptr;
     rebuildNets();
 }
 
@@ -213,6 +222,14 @@ void Circuit::rebuildNets() {
                 w->netId = net->id;
         }
     }
+}
+
+bool Circuit::hasGround() {
+    for (Component* c : components) {
+        if (c->isGround)
+            return true;
+    }
+    return false;
 }
 
 Pin* Circuit::findPinAt(const Vector2D& pos, double tol) {
