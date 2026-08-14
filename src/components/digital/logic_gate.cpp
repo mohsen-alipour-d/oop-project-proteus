@@ -16,10 +16,7 @@ void LogicGate::step(double dt, double simTime) {
         LogicLevel l;
         if (!pins[i].connected) {
             l = UNDEFINED;
-            if (!warned) {
-                cout << "Floating input detected." << endl;
-                warned = true;
-            }
+            cout << "Floating input detected on " << name << endl;
         } else {
             l = voltageToLogic(pins[i].voltage);
         }

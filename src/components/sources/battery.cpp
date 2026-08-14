@@ -7,5 +7,6 @@ Battery::Battery(string name, double x, double y, double value) : Component(name
 }
 
 void Battery::step(double dt, double simTime) {
-    pins[0].voltage = pins[1].voltage + value;
+    double i = pins[0].current;
+    pins[0].voltage = pins[1].voltage + value - i * internalResistance;
 }

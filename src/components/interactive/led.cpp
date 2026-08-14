@@ -8,10 +8,15 @@ LED::LED(string name, double x, double y, string color) : Component(name, x, y) 
 
 void LED::step(double dt, double simTime) {
     double v = pins[0].voltage - pins[1].voltage;
-    lit = v > threshold;
-    if (lit)
+    if (v > threshold && v < threshold + 0.5) {
+        lit = true;
         pins[0].current = (v - threshold) / 100.0;
-    else
+    } else if (v >= threshold + 0.5) {
+        lit = true;
+        pins[0].current = 0.02;
+    } else {
+        lit = false;
         pins[0].current = 0;
+    }
     pins[1].current = -pins[0].current;
 }
