@@ -27,4 +27,8 @@ add_executable(oop_project_proteus
         src/components/digital/logic_gate.cpp
         src/components/digital/logic_gates.cpp
         src/components/digital/d_flipflop.cpp
+        src/measurement/voltage_probe.cpp
+        src/measurement/voltmeter.cpp
+        src/measurement/ammeter.cpp
+        src/measurement/oscilloscope.cpp
 )

@@ -39,20 +39,22 @@ void Circuit::removeComponent(Component* c) {
         }
     }
     for (Wire* w : toDelete) {
-        for (int i = 0; i < (int)wires.size(); i++)
+        for (int i = 0; i < (int)wires.size(); i++) {
             if (wires[i] == w) {
                 wires.erase(wires.begin() + i);
                 break;
             }
+        }
         for (Junction* j : junctions)
             j->removeWire(w);
         delete w;
     }
-    for (int i = 0; i < (int)components.size(); i++)
+    for (int i = 0; i < (int)components.size(); i++) {
         if (components[i] == c) {
             components.erase(components.begin() + i);
             break;
         }
+    }
     rebuildNets();
 }
 
@@ -64,19 +66,21 @@ Wire* Circuit::addWire(Pin* a, Pin* b) {
 }
 
 void Circuit::removeWire(Wire* w) {
-    for (int i = 0; i < (int)wires.size(); i++)
+    for (int i = 0; i < (int)wires.size(); i++) {
         if (wires[i] == w) {
             wires.erase(wires.begin() + i);
             break;
         }
+    }
     for (Junction* j : junctions)
         j->removeWire(w);
-    for (int i = 0; i < (int)junctions.size(); i++)
+    for (int i = 0; i < (int)junctions.size(); i++) {
         if (junctions[i]->wires.empty()) {
             delete junctions[i];
             junctions.erase(junctions.begin() + i);
             i--;
         }
+    }
     delete w;
     rebuildNets();
 }
@@ -88,34 +92,38 @@ void Circuit::removeNetOf(Wire* w) {
         return;
     }
     vector<Wire*> toDelete;
-    for (Wire* x : wires)
+    for (Wire* x : wires) {
         if (x->netId == target)
             toDelete.push_back(x);
+    }
     for (Wire* x : toDelete) {
-        for (int i = 0; i < (int)wires.size(); i++)
+        for (int i = 0; i < (int)wires.size(); i++) {
             if (wires[i] == x) {
                 wires.erase(wires.begin() + i);
                 break;
             }
+        }
         for (Junction* j : junctions)
             j->removeWire(x);
         delete x;
     }
-    for (int i = 0; i < (int)junctions.size(); i++)
+    for (int i = 0; i < (int)junctions.size(); i++) {
         if (junctions[i]->wires.empty()) {
             delete junctions[i];
             junctions.erase(junctions.begin() + i);
             i--;
         }
+    }
     rebuildNets();
 }
 
 Junction* Circuit::addJunctionAt(const Vector2D& pos) {
     Junction* j = new Junction(pos.x, pos.y);
-    for (Wire* w : wires)
+    for (Wire* w : wires) {
         if (w->containsPoint(pos, 2.0))
             j->addWire(w);
-    if (j->wires.size() < 2) {
+    }
+    if ((int)j->wires.size() < 2) {
         delete j;
         return nullptr;
     }
@@ -135,9 +143,10 @@ void Circuit::rebuildNets() {
     nets.clear();
 
     vector<Pin*> allPins;
-    for (Component* c : components)
+    for (Component* c : components) {
         for (Pin& p : c->pins)
             allPins.push_back(&p);
+    }
 
     int n = (int)allPins.size();
     vector<int> parent(n);
@@ -147,9 +156,10 @@ void Circuit::rebuildNets() {
     }
 
     auto indexOf = [&](Pin* p) {
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n; i++) {
             if (allPins[i] == p)
                 return i;
+        }
         return -1;
     };
 
@@ -161,16 +171,18 @@ void Circuit::rebuildNets() {
     }
 
     for (Junction* j : junctions) {
-        for (int i = 1; i < (int)j->wires.size(); i++) {
-            int a = indexOf(j->wires[0]->startPin);
-            int b = indexOf(j->wires[0]->endPin);
-            int c = indexOf(j->wires[i]->startPin);
-            int d = indexOf(j->wires[i]->endPin);
-            if (a < 0 || b < 0 || c < 0 || d < 0)
-                continue;
-            ufUnion(parent, a, b);
-            ufUnion(parent, a, c);
-            ufUnion(parent, c, d);
+        if ((int)j->wires.size() < 2)
+            continue;
+        int first = indexOf(j->wires[0]->startPin);
+        if (first < 0)
+            continue;
+        for (int i = 0; i < (int)j->wires.size(); i++) {
+            int a = indexOf(j->wires[i]->startPin);
+            int b = indexOf(j->wires[i]->endPin);
+            if (a >= 0)
+                ufUnion(parent, first, a);
+            if (b >= 0)
+                ufUnion(parent, first, b);
         }
     }
 
@@ -178,39 +190,45 @@ void Circuit::rebuildNets() {
         if (ufFind(parent, i) != i)
             continue;
         int cnt = 0;
-        for (int k = 0; k < n; k++)
+        for (int k = 0; k < n; k++) {
             if (ufFind(parent, k) == i)
                 cnt++;
+        }
         if (cnt < 2)
             continue;
         Net* net = new Net((int)nets.size());
-        for (int k = 0; k < n; k++)
+        for (int k = 0; k < n; k++) {
             if (ufFind(parent, k) == i) {
                 net->addPin(allPins[k]);
                 allPins[k]->connected = true;
             }
+        }
         nets.push_back(net);
     }
 
     for (Wire* w : wires) {
         w->netId = -1;
-        for (Net* net : nets)
+        for (Net* net : nets) {
             if (net->hasPin(w->startPin))
                 w->netId = net->id;
+        }
     }
 }
 
 Pin* Circuit::findPinAt(const Vector2D& pos, double tol) {
-    for (Component* c : components)
-        for (Pin& p : c->pins)
+    for (Component* c : components) {
+        for (Pin& p : c->pins) {
             if (p.worldPos().distanceTo(pos) <= tol)
                 return &p;
+        }
+    }
     return nullptr;
 }
 
 Wire* Circuit::findWireAt(const Vector2D& pos, double tol) {
-    for (Wire* w : wires)
+    for (Wire* w : wires) {
         if (w->containsPoint(pos, tol))
             return w;
+    }
     return nullptr;
 }
