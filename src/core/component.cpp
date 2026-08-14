@@ -44,7 +44,7 @@ void Component::mirrorVertical() {
 }
 
 string Component::serialize() const {
-    string s = typeTag() + " " + name + " " + to_string((int)position.x) + " " + to_string((int)position.y) + " " + to_string(rotation) + " " + (mirroredH ? "1" : "0") + " " + (mirroredV ? "1" : "0");
+    string s = typeTag() + " " + name + " " + to_string(position.x) + " " + to_string(position.y) + " " + to_string(rotation) + " " + (mirroredH ? "1" : "0") + " " + (mirroredV ? "1" : "0");
     string ex = extraData();
     if (ex != "")
         s += " " + ex;
