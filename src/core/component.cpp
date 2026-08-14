@@ -27,6 +27,7 @@ Vector2D Component::pinWorldPos(const Vector2D& local) const {
         py = px;
         px = t;
     }
+
     return Vector2D(position.x + px, position.y + py);
 }
 
@@ -40,4 +41,12 @@ void Component::mirrorHorizontal() {
 
 void Component::mirrorVertical() {
     mirroredV = !mirroredV;
+}
+
+string Component::serialize() const {
+    string s = typeTag() + " " + name + " " + to_string((int)position.x) + " " + to_string((int)position.y) + " " + to_string(rotation) + " " + (mirroredH ? "1" : "0") + " " + (mirroredV ? "1" : "0");
+    string ex = extraData();
+    if (ex != "")
+        s += " " + ex;
+    return s;
 }

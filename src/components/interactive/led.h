@@ -14,4 +14,7 @@ public:
     LED(string name, double x, double y, string color);
 
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "D"; }
+    string extraData() const override { return to_string(threshold) + " " + color; }
 };

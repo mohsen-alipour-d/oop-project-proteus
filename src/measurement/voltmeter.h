@@ -13,4 +13,6 @@ public:
     Voltmeter(string name, double x, double y);
 
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "M"; }
 };

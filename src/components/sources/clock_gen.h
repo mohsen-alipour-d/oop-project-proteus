@@ -13,4 +13,7 @@ public:
     ClockGenerator(string name, double x, double y, double period);
 
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "K"; }
+    string extraData() const override { return to_string(period) + " " + to_string(highVoltage); }
 };

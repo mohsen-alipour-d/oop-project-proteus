@@ -31,4 +31,7 @@ add_executable(oop_project_proteus
         src/measurement/voltmeter.cpp
         src/measurement/ammeter.cpp
         src/measurement/oscilloscope.cpp
+        src/file/component_factory.cpp
+        src/file/history.cpp
+        src/file/file_manager.cpp
 )

@@ -13,4 +13,7 @@ public:
     Capacitor(string name, double x, double y, double value);
 
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "C"; }
+    string extraData() const override { return to_string(value); }
 };

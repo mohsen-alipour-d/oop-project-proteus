@@ -15,4 +15,7 @@ public:
     void press();
     void release();
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "P"; }
+    string extraData() const override { return pressed ? "1" : "0"; }
 };

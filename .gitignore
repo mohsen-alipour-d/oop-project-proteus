@@ -11,3 +11,5 @@ build/
 *.so
 *.out
 *.log
+test_circuit.txt
+recent_projects.txt

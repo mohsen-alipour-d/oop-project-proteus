@@ -31,4 +31,8 @@ public:
     void mirrorVertical();
     Vector2D pinWorldPos(const Vector2D& local) const;
     virtual void step(double dt, double simTime) {}
+
+    virtual string typeTag() const { return "B"; }
+    virtual string extraData() const { return ""; }
+    string serialize() const;
 };

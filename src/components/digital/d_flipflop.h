@@ -12,6 +12,8 @@ public:
 
     void step(double dt, double simTime) override;
 
+    string typeTag() const override { return "F"; }
+
 private:
     LogicLevel stored = LOW;
     LogicLevel lastClk = LOW;

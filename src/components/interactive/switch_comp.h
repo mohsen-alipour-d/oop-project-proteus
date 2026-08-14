@@ -13,4 +13,7 @@ public:
 
     void toggle();
     void step(double dt, double simTime) override;
+
+    string typeTag() const override { return "S"; }
+    string extraData() const override { return closed ? "1" : "0"; }
 };

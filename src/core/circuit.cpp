@@ -16,12 +16,22 @@ static void ufUnion(vector<int>& parent, int a, int b) {
 }
 
 Circuit::~Circuit() {
+    clear();
+}
+
+void Circuit::clear() {
     for (Wire* w : wires)
         delete w;
     for (Junction* j : junctions)
         delete j;
     for (Net* n : nets)
         delete n;
+    for (Component* c : components)
+        delete c;
+    wires.clear();
+    junctions.clear();
+    nets.clear();
+    components.clear();
 }
 
 void Circuit::addComponent(Component* c) {
@@ -63,7 +73,7 @@ void Circuit::removeComponent(Component* c) {
             break;
         }
     }
-    c->host = nullptr;
+    delete c;
     rebuildNets();
 }
 

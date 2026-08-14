@@ -19,6 +19,7 @@ public:
     Circuit() {}
     ~Circuit();
 
+    void clear();
     void addComponent(Component* c);
     void removeComponent(Component* c);
     Wire* addWire(Pin* a, Pin* b);
