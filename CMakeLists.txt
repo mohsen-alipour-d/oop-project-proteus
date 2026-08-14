@@ -15,4 +15,8 @@ add_executable(oop_project_proteus
         src/components/passive/resistor.cpp
         src/components/passive/capacitor.cpp
         src/components/passive/inductor.cpp
+        src/components/interactive/switch_comp.cpp
+        src/components/interactive/push_button.cpp
+        src/components/interactive/led.cpp
+        src/components/interactive/seven_segment.cpp
 )
