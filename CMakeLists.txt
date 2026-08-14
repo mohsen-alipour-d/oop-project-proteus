@@ -34,4 +34,10 @@ add_executable(oop_project_proteus
         src/file/component_factory.cpp
         src/file/history.cpp
         src/file/file_manager.cpp
+        src/drc/log_buffer.cpp
+        src/drc/log_buffer.h
+        src/drc/drc.cpp
+        src/drc/drc.h
+        src/drc/log_buffer.cpp
+        src/drc/drc.cpp
 )
