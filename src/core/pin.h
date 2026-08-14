@@ -11,6 +11,7 @@ public:
     Vector2D localPos;
     double sensitivityRadius = 5.0;
     bool isHighlighted = false;
+    double voltage = 0.0;
     Component* owner = nullptr;
 
     Pin() {}

@@ -26,4 +26,5 @@ public:
     void mirrorHorizontal();
     void mirrorVertical();
     Vector2D pinWorldPos(const Vector2D& local) const;
+    virtual void step(double dt, double simTime) {}
 };

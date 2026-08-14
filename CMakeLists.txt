@@ -8,4 +8,8 @@ add_executable(oop_project_proteus
         src/main.cpp
         src/core/pin.cpp
         src/core/component.cpp
+        src/components/sources/ground.cpp
+        src/components/sources/dc_source.cpp
+        src/components/sources/battery.cpp
+        src/components/sources/clock_gen.cpp
 )
