@@ -1,0 +1,32 @@
+#pragma once
+
+#include <vector>
+
+#include "component.h"
+#include "../wiring/wire.h"
+#include "../wiring/junction.h"
+#include "../wiring/net.h"
+
+using namespace std;
+
+class Circuit {
+public:
+    vector<Component*> components;
+    vector<Wire*> wires;
+    vector<Junction*> junctions;
+    vector<Net*> nets;
+
+    Circuit() {}
+    ~Circuit();
+
+    void addComponent(Component* c);
+    void removeComponent(Component* c);
+    Wire* addWire(Pin* a, Pin* b);
+    void removeWire(Wire* w);
+    void removeNetOf(Wire* w);
+    Junction* addJunctionAt(const Vector2D& pos);
+    void refreshWires();
+    void rebuildNets();
+    Pin* findPinAt(const Vector2D& pos, double tol);
+    Wire* findWireAt(const Vector2D& pos, double tol);
+};

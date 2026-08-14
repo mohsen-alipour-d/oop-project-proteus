@@ -1,75 +1,38 @@
 #include <iostream>
 
 #include "core/component.h"
-#include "components/digital/logic_gates.h"
-#include "components/digital/d_flipflop.h"
+#include "core/circuit.h"
+#include "components/sources/dc_source.h"
+#include "components/passive/resistor.h"
 
 using namespace std;
 
 int main() {
-    AndGate and1("AND1", 0, 0, 2);
-    and1.pins[0].connected = true;
-    and1.pins[1].connected = true;
-    and1.pins[0].voltage = 5;
-    and1.pins[1].voltage = 5;
-    and1.step(0.000001, 0);
-    and1.step(0.000001, 0.000002);
-    cout << "and high " << and1.pins[2].voltage << endl;
+    Circuit circuit;
 
-    and1.pins[1].voltage = 0;
-    and1.step(0.000001, 0.000003);
-    and1.step(0.000001, 0.000005);
-    cout << "and low " << and1.pins[2].voltage << endl;
+    DCSource src("V1", 0, 0, 5);
+    Resistor res("R1", 60, 0, 100);
+    circuit.addComponent(&src);
+    circuit.addComponent(&res);
 
-    OrGate or1("OR1", 60, 0, 2);
-    or1.pins[0].connected = true;
-    or1.pins[0].voltage = 0;
-    or1.step(0.000001, 0);
-    or1.step(0.000001, 0.000002);
-    cout << "or floating " << or1.pins[2].voltage << endl;
+    Wire* w1 = circuit.addWire(&src.pins[0], &res.pins[0]);
+    cout << "wire points " << w1->points.size() << endl;
+    for (Vector2D p : w1->points)
+        cout << p.x << "," << p.y << " ";
+    cout << endl;
 
-    NotGate not1("NOT1", 120, 0);
-    not1.pins[0].connected = true;
-    not1.pins[0].voltage = 5;
-    not1.step(0.000001, 0);
-    not1.step(0.000001, 0.000002);
-    cout << "not out " << not1.pins[1].voltage << endl;
+    cout << "nets " << circuit.nets.size() << endl;
+    cout << "src pin0 connected " << src.pins[0].connected << endl;
 
-    XorGate xor1("XOR1", 180, 0, 2);
-    xor1.pins[0].connected = true;
-    xor1.pins[1].connected = true;
-    xor1.pins[0].voltage = 5;
-    xor1.pins[1].voltage = 0;
-    xor1.step(0.000001, 0);
-    xor1.step(0.000001, 0.000002);
-    cout << "xor out " << xor1.pins[2].voltage << endl;
+    res.position = Vector2D(80, 20);
+    circuit.refreshWires();
+    for (Vector2D p : w1->points)
+        cout << p.x << "," << p.y << " ";
+    cout << endl;
 
-    NandGate nand1("NAND1", 240, 0, 2);
-    nand1.pins[0].connected = true;
-    nand1.pins[1].connected = true;
-    nand1.pins[0].voltage = 5;
-    nand1.pins[1].voltage = 5;
-    nand1.step(0.000001, 0);
-    nand1.step(0.000001, 0.000002);
-    cout << "nand out " << nand1.pins[2].voltage << endl;
-
-    DFlipFlop ff("FF1", 300, 0);
-    ff.pins[0].connected = true;
-    ff.pins[1].connected = true;
-    ff.pins[0].voltage = 5;
-    ff.pins[1].voltage = 0;
-    ff.step(0.000001, 0);
-    ff.pins[1].voltage = 5;
-    ff.step(0.000001, 0.000001);
-    cout << "ff q after edge " << ff.pins[2].voltage << endl;
-    ff.pins[0].voltage = 0;
-    ff.step(0.000001, 0.000002);
-    cout << "ff q no edge " << ff.pins[2].voltage << endl;
-    ff.pins[1].voltage = 0;
-    ff.step(0.000001, 0.000003);
-    ff.pins[1].voltage = 5;
-    ff.step(0.000001, 0.000004);
-    cout << "ff q second edge " << ff.pins[2].voltage << endl;
+    circuit.removeWire(w1);
+    cout << "after delete nets " << circuit.nets.size() << endl;
+    cout << "src pin0 connected " << src.pins[0].connected << endl;
 
     return 0;
 }
