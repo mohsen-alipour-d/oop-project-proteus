@@ -5,5 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(oop_project_proteus
-    src/main.cpp
+        src/main.cpp
+        src/core/pin.cpp
+        src/core/component.cpp
 )
