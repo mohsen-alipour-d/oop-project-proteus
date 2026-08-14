@@ -13,6 +13,7 @@ public:
     bool isHighlighted = false;
     double voltage = 0.0;
     double current = 0.0;
+    bool connected = false;
     Component* owner = nullptr;
 
     Pin() {}

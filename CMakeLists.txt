@@ -19,4 +19,8 @@ add_executable(oop_project_proteus
         src/components/interactive/push_button.cpp
         src/components/interactive/led.cpp
         src/components/interactive/seven_segment.cpp
+        src/components/digital/logic_level.cpp
+        src/components/digital/logic_gate.cpp
+        src/components/digital/logic_gates.cpp
+        src/components/digital/d_flipflop.cpp
 )
