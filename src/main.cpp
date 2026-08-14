@@ -6,6 +6,8 @@
 #include "components/passive/resistor.h"
 #include "file/file_manager.h"
 #include "file/history.h"
+#include "measurement/voltmeter.h"
+#include "measurement/ammeter.h"
 
 using namespace std;
 
