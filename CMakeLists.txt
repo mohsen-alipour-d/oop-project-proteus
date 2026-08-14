@@ -12,4 +12,7 @@ add_executable(oop_project_proteus
         src/components/sources/dc_source.cpp
         src/components/sources/battery.cpp
         src/components/sources/clock_gen.cpp
+        src/components/passive/resistor.cpp
+        src/components/passive/capacitor.cpp
+        src/components/passive/inductor.cpp
 )
