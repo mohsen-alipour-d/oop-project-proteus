@@ -20,8 +20,11 @@ void DFlipFlop::step(double dt, double simTime) {
     LogicLevel d = pins[0].connected ? voltageToLogic(pins[0].voltage) : UNDEFINED;
     LogicLevel clk = pins[1].connected ? voltageToLogic(pins[1].voltage) : UNDEFINED;
 
-    if (lastClk == LOW && clk == HIGH)
+    if (clk == UNDEFINED) {
+        stored = UNDEFINED;
+    } else if (lastClk == LOW && clk == HIGH) {
         stored = d;
+    }
 
     lastClk = clk;
     pins[2].voltage = logicToVoltage(stored);

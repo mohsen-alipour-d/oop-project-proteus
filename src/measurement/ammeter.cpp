@@ -14,11 +14,12 @@ void Ammeter::step(double dt, double simTime) {
         return;
     if (!host)
         return;
+
     for (Net* n : host->nets) {
         if (!n->hasPin(&pins[0]))
             continue;
         for (Pin* p : n->pins) {
-            if (p->owner != this && p->current != 0) {
+            if (p->owner != this && p->isOutput) {
                 reading = p->current;
                 return;
             }

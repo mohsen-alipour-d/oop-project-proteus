@@ -38,7 +38,24 @@ bool DRC::checkFloating(Circuit& c) {
         for (Pin& p : comp->pins) {
             if (p.isOutput)
                 continue;
-            if (!p.connected) {
+
+            bool isDriven = false;
+            if (p.connected) {
+                // بررسی اینکه آیا در این شبکه هیچ پین خروجی (محرک) وجود دارد؟
+                for (Net* n : c.nets) {
+                    if (n->hasPin(&p)) {
+                        for (Pin* netPin : n->pins) {
+                            if (netPin->isOutput) {
+                                isDriven = true;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (!isDriven) {
                 string msg = "Floating input on " + comp->name;
                 log.error(msg);
                 clean = false;
