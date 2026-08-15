@@ -8,6 +8,7 @@
 #include "../src/components/sources/ground.h"
 #include "../src/components/sources/dc_source.h"
 #include "../src/components/passive/resistor.h"
+#include "../src/components/passive/capacitor.h"
 #include "../src/components/digital/logic_gates.h"
 #include "../src/components/digital/d_flipflop.h"
 #include "../src/components/advanced/adc.h"
@@ -25,6 +26,7 @@ using namespace std;
 
 static int passed = 0;
 static int failed = 0;
+
 
 static void check(bool cond, const string& name) {
     if (cond) {
@@ -534,6 +536,22 @@ static void testDRC() {
     check(!d2.checkShorts(shorted), "short circuit detected");
 }
 
+static void testStateSerialization() {
+    Circuit c;
+    Capacitor* cap = new Capacitor("C1", 0, 0, 0.000001);
+    cap->lastVoltage = 3.5;
+    DFlipFlop* ff = new DFlipFlop("F1", 40, 0);
+    ff->stored = HIGH;
+    c.addComponent(cap);
+    c.addComponent(ff);
+    FileManager fm;
+    Circuit loaded;
+    fm.deserialize(loaded, fm.serialize(c));
+    check(near(((Capacitor*)loaded.components[0])->lastVoltage, 3.5), "capacitor state restored");
+    check(((DFlipFlop*)loaded.components[1])->stored == HIGH, "flip-flop state restored");
+}
+
+
 int main() {
     testWireRouting();
     testMoveComponent();
@@ -560,6 +578,7 @@ int main() {
     testKeypadToMCUIntegration();
     testMCUExternalMemoryIntegration();
     testDRC();
+    testStateSerialization();
     cout << "\n" << passed << " passed, " << failed << " failed" << endl;
     return failed == 0 ? 0 : 1;
 }
