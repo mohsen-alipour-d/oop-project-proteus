@@ -18,7 +18,7 @@ void LogicGate::step(double dt, double simTime) {
         if (!pins[i].connected) {
             l = UNDEFINED;
             if (!warned) {
-                cout << "Floating input detected on " << name << endl;
+                cout << "Floating input detected." << endl;
                 warned = true;
             }
         } else {

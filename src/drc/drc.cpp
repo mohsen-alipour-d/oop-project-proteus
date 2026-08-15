@@ -41,7 +41,6 @@ bool DRC::checkFloating(Circuit& c) {
 
             bool isDriven = false;
             if (p.connected) {
-                // بررسی اینکه آیا در این شبکه هیچ پین خروجی (محرک) وجود دارد؟
                 for (Net* n : c.nets) {
                     if (n->hasPin(&p)) {
                         for (Pin* netPin : n->pins) {
