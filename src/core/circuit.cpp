@@ -270,7 +270,7 @@ void Circuit::propagateVoltages() {
         bool has = false;
         bool conflict = false;
         for (Pin* p : n->pins) {
-            if (!p->isOutput)
+            if (!p->drivesNet())
                 continue;
             if (!has) {
                 v = p->voltage;

@@ -11,7 +11,7 @@ bool DRC::checkShorts(Circuit& c) {
         string lowName = "";
 
         for (Pin* p : n->pins) {
-            if (!p->isOutput)
+            if (!p->drivesNet())
                 continue;
             LogicLevel lvl = voltageToLogic(p->voltage);
             if (lvl == HIGH) {
@@ -36,25 +36,9 @@ bool DRC::checkFloating(Circuit& c) {
     bool clean = true;
     for (Component* comp : c.components) {
         for (Pin& p : comp->pins) {
-            if (p.isOutput)
+            if (!p.needsInputConnection())
                 continue;
-
-            bool isDriven = false;
-            if (p.connected) {
-                for (Net* n : c.nets) {
-                    if (n->hasPin(&p)) {
-                        for (Pin* netPin : n->pins) {
-                            if (netPin->isOutput) {
-                                isDriven = true;
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (!isDriven) {
+            if (!p.connected) {
                 string msg = "Floating input on " + comp->name;
                 log.error(msg);
                 clean = false;

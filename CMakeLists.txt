@@ -26,6 +26,18 @@ set(CORE_SOURCES
         src/components/digital/logic_gate.cpp
         src/components/digital/logic_gates.cpp
         src/components/digital/d_flipflop.cpp
+        src/components/advanced/adc.cpp
+        src/components/advanced/dac.cpp
+        src/components/advanced/microcontroller.cpp
+        src/components/advanced/external_memory.cpp
+        src/components/advanced/lcd16x2.cpp
+        src/components/advanced/matrix_keypad.cpp
+        src/mcu/register_file.cpp
+        src/mcu/internal_ram.cpp
+        src/mcu/flash_memory.cpp
+        src/mcu/firmware_loader.cpp
+        src/mcu/mcu_port.cpp
+        src/mcu/instruction_decoder.cpp
         src/measurement/voltage_probe.cpp
         src/measurement/voltmeter.cpp
         src/measurement/ammeter.cpp
