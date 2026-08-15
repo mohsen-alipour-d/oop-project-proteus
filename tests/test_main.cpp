@@ -134,6 +134,44 @@ static void testDRC() {
     check(!d2.checkShorts(shorted), "short circuit detected");
 }
 
+static void testJunctionMerge() {
+    Circuit c;
+    Resistor* r1 = new Resistor("R1", -30, 0, 100);
+    Resistor* r2 = new Resistor("R2", 30, 0, 100);
+    Resistor* r3 = new Resistor("R3", 0, -30, 100);
+    Resistor* r4 = new Resistor("R4", 0, 30, 100);
+    r3->rotate90();
+    r4->rotate90();
+    c.addComponent(r1);
+    c.addComponent(r2);
+    c.addComponent(r3);
+    c.addComponent(r4);
+    c.addWire(&r1->pins[1], &r2->pins[0]);
+    c.addWire(&r3->pins[1], &r4->pins[0]);
+    check(c.nets.size() == 2, "crossing wires stay separate without junction");
+    Junction* j = c.addJunctionAt(Vector2D(0, 0));
+    check(j != nullptr, "junction created at crossing");
+    check(c.nets.size() == 1, "junction merges crossing wires into one net");
+}
+
+static void testPropagation() {
+    Circuit c;
+    Ground* g = new Ground("G1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    Resistor* r = new Resistor("R1", 80, 0, 100);
+    c.addComponent(g);
+    c.addComponent(v);
+    c.addComponent(r);
+    c.addWire(&g->pins[0], &v->pins[1]);
+    c.addWire(&v->pins[0], &r->pins[0]);
+    g->step(0.01, 0);
+    v->step(0.01, 0);
+    c.propagateVoltages();
+    check(near(v->pins[1].voltage, 0), "ground net holds source minus at 0");
+    check(near(r->pins[0].voltage, 5), "source plus propagates 5V to resistor");
+}
+
+
 int main() {
     testWireRouting();
     testMoveComponent();
@@ -143,6 +181,8 @@ int main() {
     testGates();
     testFlipFlop();
     testDRC();
+    testJunctionMerge();
+    testPropagation();
     cout << "\n" << passed << " passed, " << failed << " failed" << endl;
     return failed == 0 ? 0 : 1;
 }
