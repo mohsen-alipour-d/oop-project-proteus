@@ -25,11 +25,13 @@ Component* buildComponent(const vector<string>& t) {
 
     if (tag == 'R')
         c = new Resistor(name, x, y, stod(t[7]));
-    else if (tag == 'C')
+    else if (tag == 'C') {
         c = new Capacitor(name, x, y, stod(t[7]));
-    else if (tag == 'L')
+        ((Capacitor*)c)->lastVoltage = stod(t[8]);
+    } else if (tag == 'L') {
         c = new Inductor(name, x, y, stod(t[7]));
-    else if (tag == 'G')
+        ((Inductor*)c)->lastCurrent = stod(t[8]);
+    } else if (tag == 'G')
         c = new Ground(name, x, y);
     else if (tag == 'V')
         c = new DCSource(name, x, y, stod(t[7]));
@@ -60,9 +62,11 @@ Component* buildComponent(const vector<string>& t) {
         c = new XorGate(name, x, y, stoi(t[7]));
     else if (tag == 'Q')
         c = new NandGate(name, x, y, stoi(t[7]));
-    else if (tag == 'F')
+    else if (tag == 'F') {
         c = new DFlipFlop(name, x, y);
-    else if (tag == 'M')
+        ((DFlipFlop*)c)->stored = (LogicLevel)stoi(t[7]);
+        ((DFlipFlop*)c)->lastClk = (LogicLevel)stoi(t[8]);
+    } else if (tag == 'M')
         c = new Voltmeter(name, x, y);
     else if (tag == 'Y')
         c = new Ammeter(name, x, y);
