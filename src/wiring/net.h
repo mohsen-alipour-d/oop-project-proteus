@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "../core/pin.h"
+#include "../components/digital/logic_level.h"
 
 using namespace std;
 
@@ -17,4 +18,5 @@ public:
 
     void addPin(Pin* p);
     bool hasPin(Pin* p) const;
+    LogicLevel logicState() const;
 };

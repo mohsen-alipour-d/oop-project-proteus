@@ -5,6 +5,10 @@ void History::push(const string& s) {
         snapshots.pop_back();
     snapshots.push_back(s);
     current = (int)snapshots.size() - 1;
+    while ((int)snapshots.size() > maxSnapshots) {
+        snapshots.erase(snapshots.begin());
+        current--;
+    }
 }
 
 bool History::canUndo() {

@@ -31,6 +31,8 @@ public:
     void mirrorHorizontal();
     void mirrorVertical();
     Vector2D pinWorldPos(const Vector2D& local) const;
+    Rect getBoundingBox() const;
+    void snapToGrid(double gridSize);
     virtual void step(double dt, double simTime) {}
 
     virtual string typeTag() const { return "B"; }

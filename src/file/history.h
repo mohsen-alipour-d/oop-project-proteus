@@ -9,6 +9,7 @@ class History {
 public:
     vector<string> snapshots;
     int current = -1;
+    int maxSnapshots = 50;
 
     void push(const string& s);
     bool canUndo();

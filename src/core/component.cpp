@@ -50,3 +50,36 @@ string Component::serialize() const {
         s += " " + ex;
     return s;
 }
+
+Rect Component::getBoundingBox() const {
+    Rect r;
+    if (pins.empty()) {
+        r.minX = position.x - 10;
+        r.maxX = position.x + 10;
+        r.minY = position.y - 10;
+        r.maxY = position.y + 10;
+        return r;
+    }
+    Vector2D first = pinWorldPos(pins[0].localPos);
+    r.minX = r.maxX = first.x;
+    r.minY = r.maxY = first.y;
+    for (const Pin& p : pins) {
+        Vector2D wp = pinWorldPos(p.localPos);
+        if (wp.x < r.minX) r.minX = wp.x;
+        if (wp.x > r.maxX) r.maxX = wp.x;
+        if (wp.y < r.minY) r.minY = wp.y;
+        if (wp.y > r.maxY) r.maxY = wp.y;
+    }
+    r.minX -= 10;
+    r.minY -= 10;
+    r.maxX += 10;
+    r.maxY += 10;
+    return r;
+}
+
+void Component::snapToGrid(double gridSize) {
+    if (gridSize <= 0)
+        return;
+    position.x = round(position.x / gridSize) * gridSize;
+    position.y = round(position.y / gridSize) * gridSize;
+}

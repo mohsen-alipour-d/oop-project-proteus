@@ -32,6 +32,8 @@ public:
     void rebuildNets();
     bool hasGround();
     void propagateVoltages();
+    void moveComponent(Component* c, double dx, double dy);
+    vector<Component*> getComponentsInRect(const Rect& r);
     Pin* findPinAt(const Vector2D& pos, double tol);
     Wire* findWireAt(const Vector2D& pos, double tol);
 };

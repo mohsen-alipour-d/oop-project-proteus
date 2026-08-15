@@ -4,8 +4,7 @@ project(oop_project_proteus)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(oop_project_proteus
-        src/main.cpp
+set(CORE_SOURCES
         src/core/pin.cpp
         src/core/component.cpp
         src/core/circuit.cpp
@@ -35,9 +34,8 @@ add_executable(oop_project_proteus
         src/file/history.cpp
         src/file/file_manager.cpp
         src/drc/log_buffer.cpp
-        src/drc/log_buffer.h
-        src/drc/drc.cpp
-        src/drc/drc.h
-        src/drc/log_buffer.cpp
         src/drc/drc.cpp
 )
+
+add_executable(oop_project_proteus src/main.cpp ${CORE_SOURCES})
+add_executable(run_tests tests/test_main.cpp ${CORE_SOURCES})

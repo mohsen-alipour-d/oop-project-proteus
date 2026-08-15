@@ -14,3 +14,7 @@ bool Net::hasPin(Pin* p) const {
             return true;
     return false;
 }
+
+LogicLevel Net::logicState() const {
+    return voltageToLogic(voltage);
+}

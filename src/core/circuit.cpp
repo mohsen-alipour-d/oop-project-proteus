@@ -1,4 +1,5 @@
 #include "circuit.h"
+#include <unordered_map>
 #include "../components/digital/logic_level.h"
 
 static int ufFind(vector<int>& parent, int i) {
@@ -177,12 +178,13 @@ void Circuit::rebuildNets() {
         allPins[i]->connected = false;
     }
 
+        unordered_map<Pin*, int> pinIndexMap;
+    for (int i = 0; i < n; i++)
+        pinIndexMap[allPins[i]] = i;
+
     auto indexOf = [&](Pin* p) {
-        for (int i = 0; i < n; i++) {
-            if (allPins[i] == p)
-                return i;
-        }
-        return -1;
+        auto it = pinIndexMap.find(p);
+        return it == pinIndexMap.end() ? -1 : it->second;
     };
 
     for (Wire* w : wires) {
@@ -286,4 +288,19 @@ void Circuit::propagateVoltages() {
         for (Pin* p : n->pins)
             p->voltage = n->voltage;
     }
+}
+
+void Circuit::moveComponent(Component* c, double dx, double dy) {
+    c->position.x += dx;
+    c->position.y += dy;
+    refreshWires();
+}
+
+vector<Component*> Circuit::getComponentsInRect(const Rect& r) {
+    vector<Component*> out;
+    for (Component* c : components) {
+        if (r.intersects(c->getBoundingBox()))
+            out.push_back(c);
+    }
+    return out;
 }
