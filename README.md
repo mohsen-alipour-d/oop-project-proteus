@@ -11,16 +11,16 @@ being built on top of this backend by other team members.
 ## Features (backend)
 
 - Component library
-    - Sources: ground, DC source, battery, clock generator
-    - Passive: resistor, capacitor, inductor
-    - Interactive: switch, push button, LED, 7-segment display
-    - Digital: AND, OR, NOT, XOR, NAND gates and D flip-flop,
-      with propagation delay and undefined-level handling
+  - Sources: ground, DC source, battery, clock generator
+  - Passive: resistor, capacitor, inductor
+  - Interactive: switch, push button, LED, 7-segment display
+  - Digital: AND, OR, NOT, XOR, NAND gates and D flip-flop,
+    with propagation delay and undefined-level handling
 - Wiring engine
-    - automatic pin detection with a sensitivity radius
-    - 90-degree orthogonal wire routing
-    - junction dots for real electrical connections
-    - wire dragging and whole-net deletion
+  - automatic pin detection with a sensitivity radius
+  - 90-degree orthogonal wire routing
+  - junction dots for real electrical connections
+  - wire dragging and whole-net deletion
 - Electrical nets built with union-find, plus voltage propagation
 - Measurement tools: voltage probe, voltmeter, ammeter, oscilloscope
 - File management: save / save-as / load, recent projects, undo / redo
@@ -40,7 +40,7 @@ Or open the folder in CLion and let it load the CMake project.
 Two executables are produced:
 
 - `oop_project_proteus` : small backend demo and integration check
-- `run_tests`           : unit tests (16 checks)
+- `run_tests`           : unit tests (21 checks)
 
   ./build/oop_project_proteus
   ./build/run_tests
