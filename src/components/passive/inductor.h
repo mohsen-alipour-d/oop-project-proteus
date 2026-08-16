@@ -15,5 +15,5 @@ public:
     void step(double dt, double simTime) override;
 
     string typeTag() const override { return "L"; }
-    string extraData() const override { return to_string(value) + " " + to_string(lastCurrent); }
+    string extraData() const override { return formatDouble(value) + " " + formatDouble(lastCurrent); }
 };

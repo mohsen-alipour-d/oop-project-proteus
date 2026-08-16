@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <sstream>
+#include <iomanip>
 
 #include "vector2d.h"
 #include "pin.h"
@@ -39,3 +41,9 @@ public:
     virtual string extraData() const { return ""; }
     string serialize() const;
 };
+
+inline string formatDouble(double v) {
+    ostringstream o;
+    o << setprecision(12) << defaultfloat << v;
+    return o.str();
+}

@@ -7,7 +7,7 @@ Resistor::Resistor(string name, double x, double y, double value) : Component(na
 }
 
 void Resistor::step(double dt, double simTime) {
-    double i = (pins[0].voltage - pins[1].voltage) / value;
-    pins[0].current = i;
+    double r = value > 0.0 ? value : 1e-9;
+    double i = (pins[0].voltage - pins[1].voltage) / r;    pins[0].current = i;
     pins[1].current = -i;
 }

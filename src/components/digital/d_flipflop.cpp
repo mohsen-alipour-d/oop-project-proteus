@@ -12,8 +12,7 @@ DFlipFlop::DFlipFlop(string name, double x, double y) : Component(name, x, y) {
 void DFlipFlop::step(double dt, double simTime) {
     if (!pins[0].connected || !pins[1].connected) {
         if (!warned) {
-            cout << "Floating input detected." << endl;
-            warned = true;
+                cout << "Floating input detected on " << name << endl;            warned = true;
         }
     }
 

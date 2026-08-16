@@ -11,7 +11,7 @@ public:
     LogicLevel apply(vector<LogicLevel>& ins) override;
 
     string typeTag() const override { return "A"; }
-    string extraData() const override { return to_string((int)pins.size() - 1) + " " + to_string(propagationDelay); }
+    string extraData() const override { return to_string((int)pins.size() - 1) + " " + formatDouble(propagationDelay); }
 };
 
 class OrGate : public LogicGate {
@@ -21,7 +21,7 @@ public:
     LogicLevel apply(vector<LogicLevel>& ins) override;
 
     string typeTag() const override { return "O"; }
-    string extraData() const override { return to_string((int)pins.size() - 1) + " " + to_string(propagationDelay); }
+    string extraData() const override { return to_string((int)pins.size() - 1) + " " + formatDouble(propagationDelay); }
 };
 
 class NotGate : public LogicGate {
@@ -31,7 +31,7 @@ public:
     LogicLevel apply(vector<LogicLevel>& ins) override;
 
     string typeTag() const override { return "N"; }
-    string extraData() const override { return to_string(propagationDelay); }
+    string extraData() const override { return formatDouble(propagationDelay); }
 };
 
 class XorGate : public LogicGate {
@@ -41,7 +41,7 @@ public:
     LogicLevel apply(vector<LogicLevel>& ins) override;
 
     string typeTag() const override { return "X"; }
-    string extraData() const override { return to_string((int)pins.size() - 1) + " " + to_string(propagationDelay); }
+    string extraData() const override { return to_string((int)pins.size() - 1) + " " + formatDouble(propagationDelay); }
 };
 
 class NandGate : public LogicGate {
@@ -51,5 +51,5 @@ public:
     LogicLevel apply(vector<LogicLevel>& ins) override;
 
     string typeTag() const override { return "Q"; }
-    string extraData() const override { return to_string((int)pins.size() - 1) + " " + to_string(propagationDelay); }
+    string extraData() const override { return to_string((int)pins.size() - 1) + " " + formatDouble(propagationDelay); }
 };

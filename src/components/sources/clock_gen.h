@@ -15,5 +15,4 @@ public:
     void step(double dt, double simTime) override;
 
     string typeTag() const override { return "K"; }
-    string extraData() const override { return to_string(period) + " " + to_string(highVoltage); }
-};
+    string extraData() const override { return formatDouble(period) + " " + formatDouble(highVoltage); }};
