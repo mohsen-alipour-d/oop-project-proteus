@@ -1,5 +1,7 @@
 #include "oscilloscope.h"
 
+#include <cmath>
+
 Oscilloscope::Oscilloscope() {
     channels.resize(2);
 }
@@ -25,8 +27,9 @@ void Oscilloscope::update(Circuit& circuit, double simTime) {
             channels[i].netId < static_cast<int>(circuit.nets.size())) {
             v = circuit.nets[channels[i].netId]->voltage;
         }
-        channels[i].history.push_back(v);
-        if (channels[i].history.size() > 2000)
+        if (!std::isfinite(v))
+            v = 0.0;
+        channels[i].history.push_back(v);        if (channels[i].history.size() > 2000)
             channels[i].history.erase(channels[i].history.begin(),
                                       channels[i].history.begin() + 500);
     }
