@@ -21,12 +21,20 @@
 #include "../src/file/file_manager.h"
 #include "../src/file/history.h"
 #include "../src/drc/drc.h"
+#include "../src/measurement/voltage_probe.h"
+#include "../src/measurement/voltmeter.h"
+#include "../src/measurement/ammeter.h"
+#include "../src/measurement/oscilloscope.h"
+#include "../src/components/sources/battery.h"
+#include "../src/components/sources/clock_gen.h"
+#include "../src/components/interactive/switch_comp.h"
+#include "../src/components/interactive/led.h"
+
 
 using namespace std;
 
 static int passed = 0;
 static int failed = 0;
-
 
 static void check(bool cond, const string& name) {
     if (cond) {
@@ -589,6 +597,197 @@ static void testGateUndefined() {
     check(near(and1.pins[2].voltage, 0), "AND with LOW input stays LOW despite undefined");
 }
 
+static void testVoltageProbe() {
+    Circuit c;
+    Ground* g = new Ground("G1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    Resistor* r = new Resistor("R1", 80, 0, 100);
+    c.addComponent(g);
+    c.addComponent(v);
+    c.addComponent(r);
+    c.addWire(&g->pins[0], &v->pins[1]);
+    c.addWire(&v->pins[0], &r->pins[0]);
+
+    g->step(0.01, 0);
+    v->step(0.01, 0);
+    c.propagateVoltages();
+
+    VoltageProbe probe;
+    check(near(probe.read(c, v->pins[0].worldPos()), 5), "probe reads source HIGH voltage");
+    check(near(probe.read(c, g->pins[0].worldPos()), 0), "probe reads ground voltage");
+    check(!probe.isFloating(c, v->pins[0].worldPos()), "probe detects connected net");
+    check(probe.isFloating(c, Vector2D(1000, 1000)), "probe detects floating at empty position");
+}
+
+static void testVoltmeter() {
+    Circuit noGround;
+    Voltmeter* vm1 = new Voltmeter("VM1", 0, 0);
+    DCSource* s1 = new DCSource("V1", 40, 0, 5);
+    noGround.addComponent(vm1);
+    noGround.addComponent(s1);
+    noGround.addWire(&vm1->pins[0], &s1->pins[0]);
+    vm1->step(0.01, 0);
+    check(vm1->hasError, "voltmeter errors without ground reference");
+
+    Circuit c;
+    Ground* g = new Ground("G1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    Voltmeter* vm2 = new Voltmeter("VM2", 80, 0);
+    c.addComponent(g);
+    c.addComponent(v);
+    c.addComponent(vm2);
+    c.addWire(&vm2->pins[0], &v->pins[0]);
+    c.addWire(&vm2->pins[1], &g->pins[0]);
+    g->step(0.01, 0);
+    v->step(0.01, 0);
+    c.propagateVoltages();
+    vm2->step(0.01, 0);
+    check(!vm2->hasError, "voltmeter ok with ground and connected pins");
+    check(near(vm2->reading, 5), "voltmeter reads correct voltage difference");
+}
+
+static void testAmmeter() {
+    Circuit c;
+    Ground* g = new Ground("G1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    Ammeter* am = new Ammeter("AM1", 80, 0);
+    Resistor* r = new Resistor("R1", 120, 0, 100);
+    c.addComponent(g);
+    c.addComponent(v);
+    c.addComponent(am);
+    c.addComponent(r);
+
+    c.addWire(&v->pins[1], &g->pins[0]);
+    c.addWire(&v->pins[0], &am->pins[0]);
+    c.addWire(&am->pins[1], &r->pins[0]);
+    c.addWire(&r->pins[1], &g->pins[0]);
+
+    g->step(0.01, 0);
+    v->step(0.01, 0);
+    c.propagateVoltages();
+    r->step(0.01, 0);
+    c.propagateVoltages();
+    am->step(0.01, 0);
+
+    check(near(am->reading, 0.05), "ammeter reads current through series resistor");
+}
+
+static void testOscilloscope() {
+    Circuit c;
+    Ground* g = new Ground("G1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    c.addComponent(g);
+    c.addComponent(v);
+    c.addWire(&g->pins[0], &v->pins[1]);
+
+    g->step(0.01, 0);
+    v->step(0.01, 0);
+    c.propagateVoltages();
+
+    int highNetId = -1;
+    for (Net* n : c.nets) {
+        if (n->hasPin(&v->pins[0]))
+            highNetId = n->id;
+    }
+
+    Oscilloscope scope;
+    if (scope.channels.empty())
+        scope.channels.resize(2);
+    scope.attachChannel(0, highNetId);
+    check(scope.channels[0].netId == highNetId, "oscilloscope channel attached to net");
+
+    scope.start();
+    check(scope.isRunning, "oscilloscope starts running");
+
+    scope.update(c, 0.0);
+    scope.update(c, 0.01);
+    scope.update(c, 0.02);
+    check(scope.channels[0].history.size() == 3, "oscilloscope records samples while running");
+
+    scope.pause();
+    scope.update(c, 0.03);
+    check(scope.channels[0].history.size() == 3, "oscilloscope stops recording when paused");
+
+    scope.stop();
+    check(scope.channels[0].history.empty(), "oscilloscope clears history on stop");
+}
+
+static void testBattery() {
+    Circuit c;
+    Battery* bat = new Battery("BAT1", 0, 0, 9);
+    bat->internalResistance = 1.0;
+    c.addComponent(bat);
+
+    bat->pins[1].voltage = 0;
+    bat->pins[1].connected = true;
+    bat->step(0.01, 0);
+    check(near(bat->pins[0].voltage, 9), "battery outputs rated voltage without load");
+}
+
+static void testClockGenerator() {
+    ClockGenerator clk("CLK1", 0, 0, 1.0);
+    clk.highVoltage = 5.0;
+
+    clk.step(0.01, 0.0);
+    check(near(clk.pins[0].voltage, 5), "clock outputs HIGH at start of period");
+
+    clk.step(0.01, 0.6);
+    check(near(clk.pins[0].voltage, 0), "clock outputs LOW in second half of period");
+
+    clk.step(0.01, 1.1);
+    check(near(clk.pins[0].voltage, 5), "clock outputs HIGH at start of next period");
+}
+
+static void testSwitch() {
+    Circuit c;
+    Switch* sw = new Switch("SW1", 0, 0);
+    DCSource* v = new DCSource("V1", 40, 0, 5);
+    Resistor* r = new Resistor("R1", 80, 0, 100);
+    Ground* g = new Ground("G1", 0, 80);
+    c.addComponent(sw);
+    c.addComponent(v);
+    c.addComponent(r);
+    c.addComponent(g);
+
+    c.addWire(&v->pins[0], &sw->pins[0]);
+    c.addWire(&sw->pins[1], &r->pins[0]);
+    c.addWire(&r->pins[1], &g->pins[0]);
+    c.addWire(&v->pins[1], &g->pins[0]);
+
+    v->step(0.01, 0);
+    g->step(0.01, 0);
+    c.propagateVoltages();
+    sw->step(0.01, 0);
+    c.propagateVoltages();
+
+    check(near(sw->pins[1].voltage, 0), "open switch isolates output from input");
+
+    sw->toggle();
+    check(sw->closed, "toggle changes switch state to closed");
+
+    sw->step(0.01, 0.01);
+    c.propagateVoltages();
+
+    check(near(sw->pins[1].voltage, 5), "closed switch propagates voltage to output");
+}
+
+static void testLED() {
+    Circuit c;
+    LED* led = new LED("LED1", 0, 0, "red");
+    led->threshold = 2.0;
+    c.addComponent(led);
+
+    led->pins[0].voltage = 1.0;
+    led->pins[1].voltage = 0.0;
+    led->step(0.01, 0);
+    check(!led->lit, "LED off when voltage below threshold");
+
+    led->pins[0].voltage = 3.0;
+    led->step(0.01, 0.01);
+    check(led->lit, "LED on when voltage above threshold");
+}
+
+
 
 
 int main() {
@@ -619,6 +818,14 @@ int main() {
     testMCUExternalMemoryIntegration();
     testDRC();
     testStateSerialization();
+    testVoltageProbe();
+    testVoltmeter();
+    testAmmeter();
+    testOscilloscope();
+    testBattery();
+    testClockGenerator();
+    testSwitch();
+    testLED();
     cout << "\n" << passed << " passed, " << failed << " failed" << endl;
     return failed == 0 ? 0 : 1;
 }
