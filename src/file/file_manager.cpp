@@ -34,6 +34,24 @@ static Component* findComponent(Circuit& c, const string& name) {
     return nullptr;
 }
 
+string FileManager::serialize(Circuit& c) {
+    string out = "";
+    for (Component* comp : c.components)
+        out += comp->serialize() + "\n";
+    for (Wire* w : c.wires)
+        out += "W " + w->startPin->owner->name + " " + to_string(pinIndex(w->startPin)) + " " + w->endPin->owner->name + " " + to_string(pinIndex(w->endPin)) + "\n";
+    for (Junction* j : c.junctions) {
+        out += "J " + to_string((int)j->position.x) + " " + to_string((int)j->position.y);
+        for (Wire* w : j->wires) {
+            for (int i = 0; i < (int)c.wires.size(); i++)
+                if (c.wires[i] == w)
+                    out += " " + to_string(i);
+        }
+        out += "\n";
+    }
+    return out;
+}
+
 void FileManager::deserialize(Circuit& c, const string& text) {
     c.clear();
     vector<string> lines = split(text, '\n');
@@ -83,52 +101,6 @@ void FileManager::deserialize(Circuit& c, const string& text) {
                 delete j;
         } catch (...) {
         }
-    }
-    c.rebuildNets();
-}
-
-
-void FileManager::deserialize(Circuit& c, const string& text) {
-    c.clear();
-    vector<string> lines = split(text, '\n');
-    vector<vector<string>> wireLines;
-    vector<vector<string>> juncLines;
-
-    for (string& line : lines) {
-        if (line == "")
-            continue;
-        vector<string> t = split(line, ' ');
-        if (t.empty())
-            continue;
-        if (t[0] == "W")
-            wireLines.push_back(t);
-        else if (t[0] == "J")
-            juncLines.push_back(t);
-        else {
-            Component* comp = buildComponent(t);
-            if (comp)
-                c.addComponent(comp);
-        }
-    }
-
-    for (vector<string>& t : wireLines) {
-        Component* a = findComponent(c, t[1]);
-        Component* b = findComponent(c, t[3]);
-        if (a && b)
-            c.addWire(&a->pins[stoi(t[2])], &b->pins[stoi(t[4])]);
-    }
-
-    for (vector<string>& t : juncLines) {
-        Junction* j = new Junction(stod(t[1]), stod(t[2]));
-        for (int k = 3; k < (int)t.size(); k++) {
-            int wi = stoi(t[k]);
-            if (wi < (int)c.wires.size())
-                j->addWire(c.wires[wi]);
-        }
-        if ((int)j->wires.size() >= 2)
-            c.junctions.push_back(j);
-        else
-            delete j;
     }
     c.rebuildNets();
 }
