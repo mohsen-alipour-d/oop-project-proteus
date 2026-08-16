@@ -760,7 +760,7 @@ static void testSwitch() {
     sw->step(0.01, 0);
     c.propagateVoltages();
 
-    check(near(sw->pins[1].voltage, 0), "open switch isolates output from input");
+    check(!sw->pins[1].drivesNet(), "open switch isolates output from input");
 
     sw->toggle();
     check(sw->closed, "toggle changes switch state to closed");
