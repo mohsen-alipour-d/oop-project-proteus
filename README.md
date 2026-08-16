@@ -34,8 +34,9 @@ Backend بخش‌های ۵، ۶، ۷، ۹، ۱۰ و ۱۱ وصل می‌کند. �
 
 - ساخت، حذف، جابه‌جایی، Rotate، Mirror و ویرایش قطعات از UI و ثبت مستقیم در `Circuit`
 - کتابخانهٔ کامل قطعات پایه، دیجیتال، ADC/DAC، MCU، حافظه، LCD، Keypad و ابزار اندازه‌گیری
-- ساخت Wire با کلیک روی دو Pin، انتخاب و حذف Wire و افزودن Junction
+- حالت صریح `WIRE` با تشخیص خودکار Pin، Highlight و Snap روی Pin دوم
 - رسم سیم‌ها با رنگ وضعیت منطقی `LOW`، `HIGH` و `UNDEFINED`
+- اسیلوسکوپ دوکانالهٔ متصل به Netهای Backend و نمایش زندهٔ Waveform
 - Save/Load و Recent Project از طریق `FileManager`
 - Undo/Redo مبتنی بر Snapshot بعد از هر تغییر معتبر کاربر
 - DRC قبل از شروع شبیه‌سازی
@@ -44,9 +45,15 @@ Backend بخش‌های ۵، ۶، ۷، ۹، ۱۰ و ۱۱ وصل می‌کند. �
 ## کنترل‌های مهم
 
 - قرار دادن قطعه: قطعه را از **Active Components** انتخاب و روی Canvas کلیک کنید.
-- سیم‌کشی: روی Pin اول و سپس Pin دوم کلیک کنید.
+- سیم‌کشی: `WIRE` را بزنید، نشانگر را نزدیک Pin ببرید تا سبز شود، روی Pin اول
+  کلیک کنید (نارنجی می‌شود) و سپس روی Pin سبز دوم کلیک کنید. پیش‌نمایش سیم روی
+  Pin دوم Snap می‌شود. برای خروج از حالت سیم‌کشی `SELECT` یا `Esc` را بزنید.
 - انتخاب Wire: روی سیم کلیک کنید و `Delete` بزنید.
 - Junction: نشانگر موس را روی تقاطع دو سیم ببرید و `J` بزنید.
+- اسیلوسکوپ: در حالت `SELECT` یک Wire را انتخاب و `SCOPE` را بزنید تا به `CH1`
+  وصل شود. برای کانال دوم Wire دیگری را انتخاب و دوباره `SCOPE` را بزنید. سپس
+  `RUN` را بزنید تا نمونه‌ها و Waveform نمایش داده شوند. `SCOPE` بدون انتخاب Wire
+  پنجره را باز/بسته می‌کند؛ `STOP` تاریخچهٔ نمونه‌ها را پاک می‌کند.
 - `Ctrl+S`: ذخیره در `proteus_project.txt`.
 - `Ctrl+Z` / `Ctrl+Y`: Undo / Redo.
 - `R`، `H`، `V`: Rotate و Mirror قطعات انتخاب‌شده.
@@ -143,6 +150,46 @@ cmake -S . -B build-backend -DPROTEUS_BUILD_GUI=OFF
 cmake --build build-backend
 ctest --test-dir build-backend --output-on-failure
 ```
+
+## همگام‌سازی با یک Repository قدیمی
+
+این اسکریپت‌ها فقط فایل‌های جدید و تغییرکرده را روی Clone موجود کپی می‌کنند؛
+فایل‌های اضافی مقصد را حذف نمی‌کنند و به پوشهٔ `.git` دست نمی‌زنند.
+
+در Windows PowerShell ابتدا پیش‌نمایش بگیرید:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\sync_to_repo.ps1 `
+  -Source "C:\path\to\ProteusOopIntegrated" `
+  -Destination "C:\path\to\cloned-old-repository" `
+  -Preview
+```
+
+اگر فهرست درست بود، همان فرمان را بدون `-Preview` اجرا کنید. در Git Bash، WSL،
+Linux یا macOS نیز می‌توانید از `rsync` استفاده کنید:
+
+```bash
+bash scripts/sync_to_repo.sh \
+  "/path/to/ProteusOopIntegrated" \
+  "/path/to/cloned-old-repository"
+```
+
+سپس داخل Repository مقصد تغییرات را بررسی، Build و Commit کنید:
+
+```bash
+git status
+git diff
+cmake -S . -B build-backend -DPROTEUS_BUILD_GUI=OFF
+cmake --build build-backend
+ctest --test-dir build-backend --output-on-failure
+git add CMakeLists.txt README.md scripts src tests .gitignore
+git commit -m "Integrate frontend with backend and add wiring scope UI"
+git push origin HEAD
+```
+
+اگر لازم است فایل‌های حذف‌شده از نسخهٔ جدید در مقصد هم حذف شوند، این کار را خودکار
+نکرده‌ایم؛ آن‌ها را فقط بعد از بررسی `git status` با `git rm` حذف کنید تا حذف ناخواسته
+رخ ندهد.
 
 راهنمای رسمی مرتبط:
 

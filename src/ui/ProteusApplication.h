@@ -43,6 +43,7 @@ enum class ButtonType
 enum class ToolbarAction
 {
     Select,
+    Wire,
     Rotate,
     MirrorHorizontal,
     MirrorVertical,
@@ -53,6 +54,7 @@ enum class ToolbarAction
     Drc,
     RunPause,
     Stop,
+    Oscilloscope,
     ResetView
 };
 
@@ -156,8 +158,12 @@ private:
     std::unordered_map<int, int> nextLabelNumber;
     int nextComponentId = 1;
     std::optional<PinHandle> pendingWireStart;
+    std::optional<PinHandle> hoveredPin;
     int selectedWireId = -1;
+    bool wireMode = false;
     bool simulationRunning = false;
+    bool oscilloscopeVisible = false;
+    int nextOscilloscopeChannel = 0;
     Uint64 lastFrameTicks = 0;
     std::string statusMessage = "READY";
 
@@ -223,6 +229,7 @@ private:
     SDL_Rect rightPanelArea() const;
     SDL_Rect canvasArea() const;
     SDL_Rect statusBarArea() const;
+    SDL_Rect oscilloscopeArea() const;
 
     static bool pointInsideRectangle(int x, int y, const SDL_Rect& rectangle);
     static SDL_Rect normalizedRectangle(const SDL_Point& first,
@@ -290,12 +297,14 @@ private:
     void rotateSelectedComponents();
     void mirrorSelectedComponentsHorizontally();
     void mirrorSelectedComponentsVertically();
+    void activateWireMode();
     void saveProject();
     void undoProject();
     void redoProject();
     void runDesignRuleCheck();
     void toggleSimulation();
     void stopSimulation();
+    void toggleOscilloscope();
     void recordProjectChange();
 
     void openPropertiesDialog(int componentId);
@@ -347,7 +356,9 @@ private:
     void renderRightPropertiesPanel(const SDL_Rect& rightPanel);
     void renderCanvas(const SDL_Rect& canvas);
     void renderWires();
+    void renderPinHighlights();
     void renderPendingWire();
+    void renderOscilloscope();
     void renderGrid(const SDL_Rect& canvas);
     void renderStatusBar(const SDL_Rect& statusBar);
     void renderComponent(const ComponentInstance& component);

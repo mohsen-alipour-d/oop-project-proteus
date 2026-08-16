@@ -162,6 +162,12 @@ SDL_Rect ProteusApplication::statusBarArea() const
             STATUS_BAR_HEIGHT};
 }
 
+SDL_Rect ProteusApplication::oscilloscopeArea() const
+{
+    const SDL_Rect canvas = canvasArea();
+    return {canvas.x + 56, canvas.y + 56, canvas.w - 112, 380};
+}
+
 bool ProteusApplication::pointInsideRectangle(int x,
                                               int y,
                                               const SDL_Rect& rectangle)
@@ -242,10 +248,14 @@ void ProteusApplication::startNewProject(CanvasPreset preset)
     components.clear();
     selectedComponentIds.clear();
     pendingWireStart.reset();
+    hoveredPin.reset();
     selectedWireId = -1;
+    wireMode = false;
     nextComponentId = 0;
     nextLabelNumber.clear();
     simulationRunning = false;
+    oscilloscopeVisible = false;
+    nextOscilloscopeChannel = 0;
     statusMessage = "NEW PROJECT";
     showDesignWorkspace(preset);
 }
@@ -274,7 +284,11 @@ void ProteusApplication::reloadFrontendFromBackend()
     components = backend.frontendComponents();
     selectedComponentIds.clear();
     pendingWireStart.reset();
+    hoveredPin.reset();
     selectedWireId = -1;
+    wireMode = false;
+    oscilloscopeVisible = false;
+    nextOscilloscopeChannel = 0;
     nextComponentId = 0;
     for (const ComponentInstance& component : components)
     {
@@ -407,6 +421,18 @@ void ProteusApplication::handleMouseMotion(int mouseX, int mouseY)
     if (mouseInsideCanvas)
     {
         canvasMouseWorld = screenToWorld(mouseX, mouseY);
+        if (wireMode)
+        {
+            hoveredPin = backend.findPinAt(canvasMouseWorld, 14.0 / zoom);
+        }
+        else
+        {
+            hoveredPin.reset();
+        }
+    }
+    else
+    {
+        hoveredPin.reset();
     }
 
     switch (mouseOperation)
@@ -634,6 +660,17 @@ void ProteusApplication::handleKeyDown(const SDL_KeyboardEvent& event)
             pendingWireStart.reset();
             statusMessage = "WIRE CANCELLED";
         }
+        else if (wireMode)
+        {
+            wireMode = false;
+            hoveredPin.reset();
+            statusMessage = "SELECT MODE";
+        }
+        else if (oscilloscopeVisible)
+        {
+            oscilloscopeVisible = false;
+            statusMessage = "OSCILLOSCOPE CLOSED";
+        }
         else if (contextMenuOpen)
         {
             contextMenuOpen = false;
@@ -796,6 +833,12 @@ void ProteusApplication::handleWorkspaceLeftClick(int mouseX,
         return;
     }
 
+    if (oscilloscopeVisible &&
+        pointInsideRectangle(mouseX, mouseY, oscilloscopeArea()))
+    {
+        return;
+    }
+
     if (!pointInsideRectangle(mouseX, mouseY, canvasArea()))
     {
         searchFocused = false;
@@ -813,10 +856,16 @@ void ProteusApplication::handleWorkspaceLeftClick(int mouseX,
         return;
     }
 
-    const std::optional<PinHandle> hitPin = backend.findPinAt(
-            worldPoint, 8.0 / zoom);
-    if (hitPin.has_value())
+    if (wireMode)
     {
+        const std::optional<PinHandle> hitPin = backend.findPinAt(
+                worldPoint, 14.0 / zoom);
+        if (!hitPin.has_value())
+        {
+            statusMessage = "MOVE TO A HIGHLIGHTED PIN";
+            return;
+        }
+
         selectedWireId = -1;
         clearSelection();
         if (!pendingWireStart.has_value())
@@ -1038,6 +1087,14 @@ bool ProteusApplication::handleToolbarClick(int mouseX, int mouseY)
         {
             case ToolbarAction::Select:
                 placementDefinitionId = -1;
+                wireMode = false;
+                pendingWireStart.reset();
+                hoveredPin.reset();
+                statusMessage = "SELECT MODE";
+                break;
+
+            case ToolbarAction::Wire:
+                activateWireMode();
                 break;
 
             case ToolbarAction::Rotate:
@@ -1078,6 +1135,10 @@ bool ProteusApplication::handleToolbarClick(int mouseX, int mouseY)
 
             case ToolbarAction::Stop:
                 stopSimulation();
+                break;
+
+            case ToolbarAction::Oscilloscope:
+                toggleOscilloscope();
                 break;
 
             case ToolbarAction::ResetView:
@@ -1314,6 +1375,9 @@ void ProteusApplication::armComponentForPlacement(int definitionId)
     }
 
     placementDefinitionId = definitionId;
+    wireMode = false;
+    pendingWireStart.reset();
+    hoveredPin.reset();
     contextMenuOpen = false;
 }
 
@@ -1562,6 +1626,20 @@ void ProteusApplication::mirrorSelectedComponentsVertically()
     }
 }
 
+void ProteusApplication::activateWireMode()
+{
+    placementDefinitionId = -1;
+    wireMode = true;
+    pendingWireStart.reset();
+    selectedWireId = -1;
+    clearSelection();
+    if (mouseInsideCanvas)
+    {
+        hoveredPin = backend.findPinAt(canvasMouseWorld, 14.0 / zoom);
+    }
+    statusMessage = "WIRE MODE: CLICK FIRST PIN";
+}
+
 void ProteusApplication::openPropertiesDialog(int componentId)
 {
     ComponentInstance* component = componentById(componentId);
@@ -1669,6 +1747,7 @@ void ProteusApplication::toggleSimulation()
     if (simulationRunning)
     {
         simulationRunning = false;
+        backend.pauseOscilloscope();
         statusMessage = "SIMULATION PAUSED";
         return;
     }
@@ -1685,6 +1764,7 @@ void ProteusApplication::toggleSimulation()
     }
 
     simulationRunning = true;
+    backend.startOscilloscope();
     lastFrameTicks = SDL_GetTicks64();
     statusMessage = "SIMULATION RUNNING";
 }
@@ -1694,6 +1774,33 @@ void ProteusApplication::stopSimulation()
     simulationRunning = false;
     backend.stopSimulation();
     statusMessage = "SIMULATION STOPPED";
+}
+
+void ProteusApplication::toggleOscilloscope()
+{
+    if (selectedWireId >= 0)
+    {
+        const std::vector<ScopeChannelView> channels = backend.oscilloscopeChannels();
+        const int channelCount = static_cast<int>(channels.size());
+        if (channelCount > 0 &&
+            backend.attachOscilloscopeChannel(nextOscilloscopeChannel,
+                                              selectedWireId))
+        {
+            statusMessage = "WIRE ATTACHED TO SCOPE CH" +
+                            std::to_string(nextOscilloscopeChannel + 1);
+            nextOscilloscopeChannel = (nextOscilloscopeChannel + 1) % channelCount;
+            selectedWireId = -1;
+            oscilloscopeVisible = true;
+            return;
+        }
+        statusMessage = "SCOPE ATTACH FAILED";
+        return;
+    }
+
+    oscilloscopeVisible = !oscilloscopeVisible;
+    statusMessage = oscilloscopeVisible
+                    ? "SELECT WIRE THEN PRESS SCOPE"
+                    : "OSCILLOSCOPE CLOSED";
 }
 
 void ProteusApplication::recordProjectChange()
@@ -2080,6 +2187,11 @@ void ProteusApplication::renderDesignWorkspace()
     renderRightPropertiesPanel(rightPanelArea());
     renderStatusBar(statusBarArea());
 
+    if (oscilloscopeVisible)
+    {
+        renderOscilloscope();
+    }
+
     if (contextMenuOpen)
     {
         renderContextMenu();
@@ -2095,6 +2207,7 @@ void ProteusApplication::rebuildToolbarHitAreas()
 
     const std::pair<const char*, ToolbarAction> definitions[] = {
         {"SELECT", ToolbarAction::Select},
+        {"WIRE", ToolbarAction::Wire},
         {"ROTATE", ToolbarAction::Rotate},
         {"MIRROR H", ToolbarAction::MirrorHorizontal},
         {"MIRROR V", ToolbarAction::MirrorVertical},
@@ -2105,6 +2218,7 @@ void ProteusApplication::rebuildToolbarHitAreas()
         {"DRC", ToolbarAction::Drc},
         {"RUN", ToolbarAction::RunPause},
         {"STOP", ToolbarAction::Stop},
+        {"SCOPE", ToolbarAction::Oscilloscope},
         {"RESET VIEW", ToolbarAction::ResetView}
     };
 
@@ -2122,15 +2236,18 @@ void ProteusApplication::renderTopToolbar(const SDL_Rect& toolbar)
     drawFilledRectangle(toolbar, titleColor, borderColor, 2);
     rebuildToolbarHitAreas();
 
-    const char* labels[] = {"SELECT", "ROTATE", "MIRROR H", "MIRROR V",
+    const char* labels[] = {"SELECT", "WIRE", "ROTATE", "MIRROR H", "MIRROR V",
                             "DELETE", "SAVE", "UNDO", "REDO", "DRC",
-                            "RUN", "STOP", "RESET VIEW"};
+                            "RUN", "STOP", "SCOPE", "RESET VIEW"};
 
     for (std::size_t index = 0; index < toolbarButtons.size(); ++index)
     {
-        const bool isSelectActive = toolbarButtons[index].second == ToolbarAction::Select &&
-                                    placementDefinitionId < 0;
-        const SDL_Color fill = isSelectActive ? selectedItemColor : buttonColor;
+        const ToolbarAction action = toolbarButtons[index].second;
+        const bool active = (action == ToolbarAction::Select &&
+                             placementDefinitionId < 0 && !wireMode) ||
+                            (action == ToolbarAction::Wire && wireMode) ||
+                            (action == ToolbarAction::Oscilloscope && oscilloscopeVisible);
+        const SDL_Color fill = active ? selectedItemColor : buttonColor;
         drawFilledRectangle(toolbarButtons[index].first, fill, whiteText, 1);
         const std::string label = toolbarButtons[index].second == ToolbarAction::RunPause &&
                                   simulationRunning
@@ -2497,6 +2614,7 @@ void ProteusApplication::renderCanvas(const SDL_Rect& canvas)
         renderComponent(component);
     }
 
+    renderPinHighlights();
     renderPlacementPreview();
     renderPendingWire();
     renderSelectionRectangle();
@@ -2506,6 +2624,41 @@ void ProteusApplication::renderCanvas(const SDL_Rect& canvas)
     drawPixelTextCentered(presetName() + " DESIGN CANVAS", tag, 1, whiteText);
 
     SDL_RenderSetClipRect(renderer, nullptr);
+}
+
+void ProteusApplication::renderPinHighlights()
+{
+    const auto drawHighlight = [this](const PinHandle& handle,
+                                      const SDL_Color& color,
+                                      int radius)
+    {
+        const std::optional<WorldPoint> position = backend.pinPosition(handle);
+        if (!position.has_value())
+        {
+            return;
+        }
+        const SDL_Point screen = worldToScreen(*position);
+        circleRGBA(renderer,
+                   static_cast<Sint16>(screen.x),
+                   static_cast<Sint16>(screen.y),
+                   static_cast<Sint16>(radius),
+                   color.r, color.g, color.b, 255);
+        circleRGBA(renderer,
+                   static_cast<Sint16>(screen.x),
+                   static_cast<Sint16>(screen.y),
+                   static_cast<Sint16>(radius + 2),
+                   color.r, color.g, color.b, 180);
+    };
+
+    if (pendingWireStart.has_value())
+    {
+        drawHighlight(*pendingWireStart, selectionColor, 9);
+    }
+    if (hoveredPin.has_value() &&
+        (!pendingWireStart.has_value() || *hoveredPin != *pendingWireStart))
+    {
+        drawHighlight(*hoveredPin, SDL_Color{35, 180, 90, 255}, 9);
+    }
 }
 
 void ProteusApplication::renderWires()
@@ -2572,13 +2725,122 @@ void ProteusApplication::renderPendingWire()
         return;
     }
 
+    WorldPoint target = canvasMouseWorld;
+    if (hoveredPin.has_value() && *hoveredPin != *pendingWireStart)
+    {
+        const std::optional<WorldPoint> snapped = backend.pinPosition(*hoveredPin);
+        if (snapped.has_value())
+        {
+            target = *snapped;
+        }
+    }
+
     const SDL_Point first = worldToScreen(*start);
-    const SDL_Point corner = worldToScreen({canvasMouseWorld.x, start->y});
-    const SDL_Point last = worldToScreen(canvasMouseWorld);
+    const SDL_Point corner = worldToScreen({target.x, start->y});
+    const SDL_Point last = worldToScreen(target);
     thickLineRGBA(renderer, first.x, first.y, corner.x, corner.y, 2,
                   selectionColor.r, selectionColor.g, selectionColor.b, 180);
     thickLineRGBA(renderer, corner.x, corner.y, last.x, last.y, 2,
                   selectionColor.r, selectionColor.g, selectionColor.b, 180);
+}
+
+void ProteusApplication::renderOscilloscope()
+{
+    const SDL_Rect panel = oscilloscopeArea();
+    drawFilledRectangle(panel,
+                        SDL_Color{16, 32, 38, 245},
+                        selectionColor,
+                        3);
+
+    const SDL_Rect heading{panel.x + 3, panel.y + 3, panel.w - 6, 44};
+    drawFilledRectangle(heading,
+                        SDL_Color{22, 74, 82, 255},
+                        SDL_Color{60, 155, 160, 255},
+                        1);
+    drawPixelTextCentered("OSCILLOSCOPE - 2 CHANNEL",
+                          heading,
+                          2,
+                          SDL_Color{205, 255, 225, 255});
+
+    const SDL_Rect graph{panel.x + 24,
+                         panel.y + 62,
+                         panel.w - 48,
+                         panel.h - 118};
+    drawFilledRectangle(graph,
+                        SDL_Color{3, 15, 18, 255},
+                        SDL_Color{72, 135, 140, 255},
+                        1);
+
+    SDL_SetRenderDrawColor(renderer, 24, 58, 62, 255);
+    for (int division = 1; division < 10; ++division)
+    {
+        const int x = graph.x + division * graph.w / 10;
+        SDL_RenderDrawLine(renderer, x, graph.y, x, graph.y + graph.h);
+    }
+    for (int division = 1; division < 7; ++division)
+    {
+        const int y = graph.y + division * graph.h / 7;
+        SDL_RenderDrawLine(renderer, graph.x, y, graph.x + graph.w, y);
+    }
+
+    const SDL_Color channelColors[] = {
+        SDL_Color{70, 245, 120, 255},
+        SDL_Color{80, 190, 255, 255}
+    };
+    const std::vector<ScopeChannelView> channels = backend.oscilloscopeChannels();
+    for (const ScopeChannelView& channel : channels)
+    {
+        const SDL_Color color = channelColors[channel.channelIndex % 2];
+        const std::string label = "CH" + std::to_string(channel.channelIndex + 1) +
+                                  (channel.netId >= 0
+                                   ? "  NET " + std::to_string(channel.netId)
+                                   : "  NOT ATTACHED");
+        drawPixelTextAt(label,
+                        panel.x + 28 + channel.channelIndex * 190,
+                        panel.y + 49,
+                        1,
+                        color);
+
+        if (channel.history.size() < 2)
+        {
+            continue;
+        }
+
+        const std::size_t maximumSamples = static_cast<std::size_t>(graph.w);
+        const std::size_t firstSample = channel.history.size() > maximumSamples
+                                        ? channel.history.size() - maximumSamples
+                                        : 0;
+        const std::size_t sampleCount = channel.history.size() - firstSample;
+        for (std::size_t index = 1; index < sampleCount; ++index)
+        {
+            const double firstVoltage = std::clamp(
+                    channel.history[firstSample + index - 1], -1.0, 6.0);
+            const double secondVoltage = std::clamp(
+                    channel.history[firstSample + index], -1.0, 6.0);
+            const int x1 = graph.x + static_cast<int>(
+                    (index - 1) * static_cast<std::size_t>(graph.w - 1) /
+                    std::max<std::size_t>(1, sampleCount - 1));
+            const int x2 = graph.x + static_cast<int>(
+                    index * static_cast<std::size_t>(graph.w - 1) /
+                    std::max<std::size_t>(1, sampleCount - 1));
+            const int y1 = graph.y + graph.h - 1 - static_cast<int>(
+                    ((firstVoltage + 1.0) / 7.0) * (graph.h - 1));
+            const int y2 = graph.y + graph.h - 1 - static_cast<int>(
+                    ((secondVoltage + 1.0) / 7.0) * (graph.h - 1));
+            lineRGBA(renderer,
+                     static_cast<Sint16>(x1), static_cast<Sint16>(y1),
+                     static_cast<Sint16>(x2), static_cast<Sint16>(y2),
+                     color.r, color.g, color.b, color.a);
+        }
+    }
+
+    drawPixelTextCentered("SELECT A WIRE + SCOPE: ATTACH   ESC/SCOPE: CLOSE",
+                          {panel.x + 18,
+                           panel.y + panel.h - 43,
+                           panel.w - 36,
+                           28},
+                          1,
+                          SDL_Color{205, 235, 235, 255});
 }
 
 void ProteusApplication::renderGrid(const SDL_Rect& canvas)
@@ -2666,6 +2928,10 @@ void ProteusApplication::renderStatusBar(const SDL_Rect& statusBar)
     if (pendingWireStart.has_value())
     {
         mode = "MODE: WIRE - SELECT SECOND PIN";
+    }
+    else if (wireMode)
+    {
+        mode = "MODE: WIRE - HOVER AND CLICK A PIN";
     }
     else if (placementDefinitionId >= 0)
     {

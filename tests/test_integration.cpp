@@ -40,6 +40,21 @@ int main()
           "second wire is connected");
     check(backend.wireViews().size() == 2,
           "backend wires are visible to the frontend");
+    check(backend.findPinAt({41.0, 0.0}, 1.0).has_value(),
+          "pin hit testing supports automatic pin selection");
+
+    const int measuredWireId = backend.wireViews().front().id;
+    check(backend.attachOscilloscopeChannel(0, measuredWireId),
+          "a frontend-selected wire attaches to an oscilloscope channel");
+    backend.startOscilloscope();
+    backend.step(0.01);
+    const std::vector<ScopeChannelView> scopeChannels =
+            backend.oscilloscopeChannels();
+    check(scopeChannels.size() == 2 &&
+          scopeChannels.front().netId >= 0 &&
+          !scopeChannels.front().history.empty(),
+          "oscilloscope samples the attached backend net");
+    backend.pauseOscilloscope();
     check(backend.validate(), "integrated circuit passes DRC");
 
     backend.recordHistory();

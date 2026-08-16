@@ -22,6 +22,7 @@ public:
     Oscilloscope();
 
     void attachChannel(int chIndex, int netId);
+    void start();
     void update(Circuit& circuit, double simTime);
     void pause();
     void stop();

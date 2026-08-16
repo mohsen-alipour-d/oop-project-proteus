@@ -156,6 +156,7 @@ void BackendAdapter::resetProject()
     fileManager = FileManager{};
     history = History{};
     drc.log.clear();
+    oscilloscope = Oscilloscope{};
     simulationTime = 0.0;
     recordHistory();
 }
@@ -369,6 +370,47 @@ std::vector<WorldPoint> BackendAdapter::junctionPositions() const
     return result;
 }
 
+bool BackendAdapter::attachOscilloscopeChannel(int channelIndex, int wireId)
+{
+    Wire* wire = wireById(wireId);
+    if (wire == nullptr || wire->netId < 0 ||
+        channelIndex < 0 ||
+        channelIndex >= static_cast<int>(oscilloscope.channels.size()))
+    {
+        return false;
+    }
+    oscilloscope.attachChannel(channelIndex, wire->netId);
+    return true;
+}
+
+void BackendAdapter::startOscilloscope()
+{
+    oscilloscope.start();
+}
+
+void BackendAdapter::pauseOscilloscope()
+{
+    oscilloscope.pause();
+}
+
+std::vector<ScopeChannelView> BackendAdapter::oscilloscopeChannels() const
+{
+    std::vector<ScopeChannelView> result;
+    result.reserve(oscilloscope.channels.size());
+    for (int index = 0;
+         index < static_cast<int>(oscilloscope.channels.size());
+         ++index)
+    {
+        const ScopeChannel& channel = oscilloscope.channels[index];
+        result.push_back({index,
+                          channel.netId,
+                          channel.timeDiv,
+                          channel.voltDiv,
+                          channel.history});
+    }
+    return result;
+}
+
 void BackendAdapter::recordHistory()
 {
     const std::string snapshot = fileManager.serialize(circuit);
@@ -388,6 +430,7 @@ bool BackendAdapter::undo()
         return false;
     }
     fileManager.deserialize(circuit, history.undo());
+    oscilloscope = Oscilloscope{};
     for (Component* component : circuit.components)
     {
         applyDefinitionGeometry(*component, definitionIdFor(*component));
@@ -404,6 +447,7 @@ bool BackendAdapter::redo()
         return false;
     }
     fileManager.deserialize(circuit, history.redo());
+    oscilloscope = Oscilloscope{};
     for (Component* component : circuit.components)
     {
         applyDefinitionGeometry(*component, definitionIdFor(*component));
@@ -445,6 +489,7 @@ bool BackendAdapter::load(const std::string& path)
     }
     circuit.refreshWires();
     history = History{};
+    oscilloscope = Oscilloscope{};
     recordHistory();
     simulationTime = 0.0;
     return true;
@@ -511,11 +556,13 @@ void BackendAdapter::step(double dt)
         component->step(dt, simulationTime);
     }
     circuit.propagateVoltages();
+    oscilloscope.update(circuit, simulationTime);
 }
 
 void BackendAdapter::stopSimulation()
 {
     simulationTime = 0.0;
+    oscilloscope.stop();
 }
 
 Component* BackendAdapter::componentById(int componentId) const

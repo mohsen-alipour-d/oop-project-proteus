@@ -5,6 +5,7 @@
 #include "../file/file_manager.h"
 #include "../file/history.h"
 #include "../drc/drc.h"
+#include "../measurement/oscilloscope.h"
 
 #include <optional>
 #include <string>
@@ -32,6 +33,11 @@ struct PinHandle
     {
         return componentId == other.componentId && pinIndex == other.pinIndex;
     }
+
+    bool operator!=(const PinHandle& other) const
+    {
+        return !(*this == other);
+    }
 };
 
 struct WireView
@@ -39,6 +45,15 @@ struct WireView
     int id = -1;
     std::vector<WorldPoint> points;
     WireLogicState state = WireLogicState::Floating;
+};
+
+struct ScopeChannelView
+{
+    int channelIndex = -1;
+    int netId = -1;
+    double timeDiv = 1.0;
+    double voltDiv = 1.0;
+    std::vector<double> history;
 };
 
 class BackendAdapter
@@ -65,6 +80,11 @@ public:
     std::vector<WireView> wireViews() const;
     std::vector<WorldPoint> junctionPositions() const;
 
+    bool attachOscilloscopeChannel(int channelIndex, int wireId);
+    void startOscilloscope();
+    void pauseOscilloscope();
+    std::vector<ScopeChannelView> oscilloscopeChannels() const;
+
     void recordHistory();
     bool undo();
     bool redo();
@@ -87,6 +107,7 @@ private:
     FileManager fileManager;
     History history;
     DRC drc;
+    Oscilloscope oscilloscope;
     ComponentLibrary definitions;
     double simulationTime = 0.0;
 
