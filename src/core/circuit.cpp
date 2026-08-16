@@ -286,7 +286,7 @@ void Circuit::propagateVoltages() {
         else if (has)
             n->voltage = v;
         else
-            continue;
+            n->voltage = UNDEFINED_VOLT;
         for (Pin* p : n->pins)
             p->voltage = n->voltage;
     }

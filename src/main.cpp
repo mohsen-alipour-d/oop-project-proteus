@@ -25,6 +25,13 @@ int main(int argc, char* argv[])
     // =====================================================================
 
     // =====================================================================
+    // SECTION 8 - SIMULATION CONTROL
+    // Run, Pause, Stop and fixed-time Step use one internal simulation clock.
+    // Live wire states and interactive switches/buttons are synchronized with
+    // the backend while the editor remains locked until Stop.
+    // =====================================================================
+
+    // =====================================================================
     // INTEGRATED EVENT AND SIMULATION LOOP
     // UI actions are forwarded to the backend and every accepted edit is
     // recorded as one history snapshot.

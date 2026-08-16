@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ProteusOopProject LANGUAGES CXX)
+project(ProteusOopIntegrated LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(PROTEUS_BUILD_GUI "Build the SDL2 graphical application" ON)
 option(PROTEUS_BUILD_TESTS "Build backend and integration tests" ON)
 
-# Sections 5, 6, 7, 9, 10 and 11: reusable backend target.
+# Sections 5, 6, 7, 9, 10 and 11 plus the SDL-independent Section 8 engine.
 set(PROTEUS_BACKEND_SOURCES
         src/core/pin.cpp
         src/core/component.cpp
@@ -16,6 +16,7 @@ set(PROTEUS_BACKEND_SOURCES
         src/wiring/wire.cpp
         src/wiring/junction.cpp
         src/wiring/net.cpp
+        src/simulation/simulation_controller.cpp
         src/components/sources/ground.cpp
         src/components/sources/dc_source.cpp
         src/components/sources/battery.cpp
@@ -66,7 +67,7 @@ target_include_directories(proteus_integration PUBLIC src)
 target_link_libraries(proteus_integration PUBLIC proteus_backend)
 
 if (PROTEUS_BUILD_GUI)
-    # Sections 1 to 4: SDL2 frontend.
+    # Sections 1 to 4 and Section 8 controls: SDL2 frontend.
     find_package(SDL2 CONFIG QUIET)
     if (NOT TARGET SDL2::SDL2 AND NOT TARGET SDL2::SDL2-static)
         find_package(SDL2 REQUIRED)

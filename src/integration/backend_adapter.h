@@ -6,6 +6,7 @@
 #include "../file/history.h"
 #include "../drc/drc.h"
 #include "../measurement/oscilloscope.h"
+#include "../simulation/simulation_controller.h"
 
 #include <optional>
 #include <string>
@@ -45,6 +46,8 @@ struct WireView
     int id = -1;
     std::vector<WorldPoint> points;
     WireLogicState state = WireLogicState::Floating;
+    double voltage = 0.0;
+    bool driven = false;
 };
 
 struct ScopeChannelView
@@ -99,8 +102,21 @@ public:
 
     bool validate();
     const std::vector<LogMessage>& validationMessages() const;
+
+    void startSimulation();
+    void pauseSimulation();
+    void updateSimulation(double dt);
+    bool stepSimulation();
     void step(double dt);
     void stopSimulation();
+    SimulationState simulationState() const;
+    double simulationTimeSeconds() const;
+    double simulationStepSeconds() const;
+
+    bool toggleSwitch(int componentId);
+    bool setPushButtonPressed(int componentId, bool pressed);
+    bool adjustInteractiveValue(int componentId, int direction);
+    std::string runtimeComponentValue(int componentId) const;
 
 private:
     Circuit circuit;
@@ -108,8 +124,9 @@ private:
     History history;
     DRC drc;
     Oscilloscope oscilloscope;
+    SimulationController simulationController;
     ComponentLibrary definitions;
-    double simulationTime = 0.0;
+    std::string simulationBaseline;
 
     Component* componentById(int componentId) const;
     Wire* wireById(int wireId) const;
@@ -125,4 +142,6 @@ private:
     void applyEditableValue(Component& component,
                             int definitionId,
                             const std::string& value) const;
+    void prepareSimulationSession();
+    void evaluateCircuit(double dt);
 };

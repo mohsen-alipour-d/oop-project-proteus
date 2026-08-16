@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 
@@ -69,7 +70,7 @@ bool ProteusApplication::initialize()
     }
 
     window = SDL_CreateWindow(
-            "Proteus OOP Simulator - Integrated Sections 1 to 11",
+            "Proteus",
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             LOGICAL_WIDTH,
@@ -253,7 +254,8 @@ void ProteusApplication::startNewProject(CanvasPreset preset)
     wireMode = false;
     nextComponentId = 0;
     nextLabelNumber.clear();
-    simulationRunning = false;
+    activePushButtonId = -1;
+    wireAnimationPhase = 0.0;
     oscilloscopeVisible = false;
     nextOscilloscopeChannel = 0;
     statusMessage = "NEW PROJECT";
@@ -273,7 +275,8 @@ bool ProteusApplication::loadProject(bool mostRecent)
     }
 
     reloadFrontendFromBackend();
-    simulationRunning = false;
+    activePushButtonId = -1;
+    wireAnimationPhase = 0.0;
     statusMessage = "PROJECT LOADED";
     showDesignWorkspace(CanvasPreset::A4);
     return true;
@@ -329,9 +332,10 @@ void ProteusApplication::updateSimulation()
     const double dt = std::min(0.05,
                                static_cast<double>(now - lastFrameTicks) / 1000.0);
     lastFrameTicks = now;
-    if (simulationRunning)
+    if (backend.simulationState() == SimulationState::Running)
     {
-        backend.step(dt);
+        backend.updateSimulation(dt);
+        wireAnimationPhase += dt;
     }
 }
 
@@ -523,6 +527,14 @@ void ProteusApplication::handleMouseButtonUp(const SDL_MouseButtonEvent& event,
         return;
     }
 
+    if (event.button == SDL_BUTTON_LEFT && activePushButtonId >= 0)
+    {
+        backend.setPushButtonPressed(activePushButtonId, false);
+        updateRuntimeComponentValue(activePushButtonId);
+        activePushButtonId = -1;
+        statusMessage = "PUSH BUTTON RELEASED";
+    }
+
     if (event.button == SDL_BUTTON_LEFT || event.button == SDL_BUTTON_MIDDLE)
     {
         finishCanvasOperation(mouseX, mouseY, SDL_GetModState());
@@ -539,6 +551,19 @@ void ProteusApplication::handleMouseWheel(const SDL_MouseWheelEvent& event)
 
     if (pointInsideRectangle(lastMouseX, lastMouseY, canvasArea()))
     {
+        if (simulationActive())
+        {
+            const int componentId = componentAt(screenToWorld(lastMouseX,
+                                                               lastMouseY));
+            const int direction = event.y > 0 ? 1 : -1;
+            if (componentId >= 0 &&
+                backend.adjustInteractiveValue(componentId, direction))
+            {
+                updateRuntimeComponentValue(componentId);
+                statusMessage = "LIVE VALUE CHANGED";
+                return;
+            }
+        }
         const double factor = event.y > 0 ? 1.12 : 1.0 / 1.12;
         zoomAt(lastMouseX, lastMouseY, factor);
         return;
@@ -649,6 +674,23 @@ void ProteusApplication::handleKeyDown(const SDL_KeyboardEvent& event)
             {
                 running = false;
             }
+        }
+        return;
+    }
+
+    if (simulationActive())
+    {
+        if (key == SDLK_ESCAPE)
+        {
+            stopSimulation();
+        }
+        else if ((modifiers & KMOD_CTRL) != 0 && key == SDLK_s)
+        {
+            statusMessage = "STOP SIMULATION BEFORE SAVING";
+        }
+        else
+        {
+            statusMessage = "STOP SIMULATION TO EDIT";
         }
         return;
     }
@@ -826,8 +868,57 @@ void ProteusApplication::handleWorkspaceLeftClick(int mouseX,
         contextMenuOpen = false;
     }
 
-    if (handleToolbarClick(mouseX, mouseY) ||
-        handleLeftPanelClick(mouseX, mouseY, clickCount) ||
+    if (handleToolbarClick(mouseX, mouseY))
+    {
+        return;
+    }
+
+    if (simulationActive())
+    {
+        if (oscilloscopeVisible &&
+            pointInsideRectangle(mouseX, mouseY, oscilloscopeArea()))
+        {
+            return;
+        }
+        if (!pointInsideRectangle(mouseX, mouseY, canvasArea()))
+        {
+            statusMessage = "STOP SIMULATION TO EDIT";
+            return;
+        }
+
+        const WorldPoint livePoint = screenToWorld(mouseX, mouseY);
+        const int componentId = componentAt(livePoint);
+        if (componentId >= 0)
+        {
+            const ComponentInstance* component = componentById(componentId);
+            if (component != nullptr && component->definitionId() == 4 &&
+                backend.toggleSwitch(componentId))
+            {
+                updateRuntimeComponentValue(componentId);
+                statusMessage = "SWITCH TOGGLED LIVE";
+            }
+            else if (component != nullptr && component->definitionId() == 10 &&
+                     backend.setPushButtonPressed(componentId, true))
+            {
+                activePushButtonId = componentId;
+                updateRuntimeComponentValue(componentId);
+                statusMessage = "PUSH BUTTON PRESSED";
+            }
+            else
+            {
+                statusMessage = "LIVE: CLICK SWITCH/BUTTON OR SCROLL R/V";
+            }
+            return;
+        }
+
+        selectedWireId = backend.findWireAt(livePoint, 6.0 / zoom);
+        statusMessage = selectedWireId >= 0
+                        ? "LIVE WIRE SELECTED"
+                        : "SIMULATION ACTIVE";
+        return;
+    }
+
+    if (handleLeftPanelClick(mouseX, mouseY, clickCount) ||
         handleRightPanelClick(mouseX, mouseY))
     {
         return;
@@ -939,6 +1030,13 @@ void ProteusApplication::handleWorkspaceLeftClick(int mouseX,
 
 void ProteusApplication::handleWorkspaceRightClick(int mouseX, int mouseY)
 {
+    if (simulationActive())
+    {
+        contextMenuOpen = false;
+        statusMessage = "STOP SIMULATION TO EDIT";
+        return;
+    }
+
     if (!pointInsideRectangle(mouseX, mouseY, canvasArea()))
     {
         contextMenuOpen = false;
@@ -1083,6 +1181,21 @@ bool ProteusApplication::handleToolbarClick(int mouseX, int mouseY)
             continue;
         }
 
+        const bool editingAction =
+                button.second == ToolbarAction::Wire ||
+                button.second == ToolbarAction::Rotate ||
+                button.second == ToolbarAction::MirrorHorizontal ||
+                button.second == ToolbarAction::MirrorVertical ||
+                button.second == ToolbarAction::Delete ||
+                button.second == ToolbarAction::Save ||
+                button.second == ToolbarAction::Undo ||
+                button.second == ToolbarAction::Redo;
+        if (simulationActive() && editingAction)
+        {
+            statusMessage = "STOP SIMULATION TO EDIT";
+            return true;
+        }
+
         switch (button.second)
         {
             case ToolbarAction::Select:
@@ -1129,12 +1242,20 @@ bool ProteusApplication::handleToolbarClick(int mouseX, int mouseY)
                 runDesignRuleCheck();
                 break;
 
-            case ToolbarAction::RunPause:
-                toggleSimulation();
+            case ToolbarAction::Run:
+                startSimulation();
+                break;
+
+            case ToolbarAction::Pause:
+                pauseSimulation();
                 break;
 
             case ToolbarAction::Stop:
                 stopSimulation();
+                break;
+
+            case ToolbarAction::Step:
+                stepSimulation();
                 break;
 
             case ToolbarAction::Oscilloscope:
@@ -1742,17 +1863,16 @@ void ProteusApplication::runDesignRuleCheck()
     }
 }
 
-void ProteusApplication::toggleSimulation()
+void ProteusApplication::startSimulation()
 {
-    if (simulationRunning)
+    if (backend.simulationState() == SimulationState::Running)
     {
-        simulationRunning = false;
-        backend.pauseOscilloscope();
-        statusMessage = "SIMULATION PAUSED";
+        statusMessage = "SIMULATION ALREADY RUNNING";
         return;
     }
 
-    if (!backend.validate())
+    if (backend.simulationState() == SimulationState::Stopped &&
+        !backend.validate())
     {
         statusMessage = "RUN BLOCKED BY DRC";
         for (const LogMessage& message : backend.validationMessages())
@@ -1763,17 +1883,85 @@ void ProteusApplication::toggleSimulation()
         return;
     }
 
-    simulationRunning = true;
-    backend.startOscilloscope();
+    placementDefinitionId = -1;
+    wireMode = false;
+    pendingWireStart.reset();
+    hoveredPin.reset();
+    mouseOperation = MouseOperation::None;
+    backend.startSimulation();
     lastFrameTicks = SDL_GetTicks64();
     statusMessage = "SIMULATION RUNNING";
 }
 
+void ProteusApplication::pauseSimulation()
+{
+    if (backend.simulationState() != SimulationState::Running)
+    {
+        statusMessage = backend.simulationState() == SimulationState::Paused
+                        ? "SIMULATION ALREADY PAUSED"
+                        : "PRESS RUN OR STEP FIRST";
+        return;
+    }
+    backend.pauseSimulation();
+    statusMessage = "SIMULATION PAUSED";
+}
+
 void ProteusApplication::stopSimulation()
 {
-    simulationRunning = false;
+    if (backend.simulationState() == SimulationState::Stopped)
+    {
+        statusMessage = "SIMULATION ALREADY STOPPED";
+        return;
+    }
     backend.stopSimulation();
-    statusMessage = "SIMULATION STOPPED";
+    reloadFrontendFromBackend();
+    activePushButtonId = -1;
+    wireAnimationPhase = 0.0;
+    statusMessage = "SIMULATION STOPPED - EDIT MODE";
+}
+
+void ProteusApplication::stepSimulation()
+{
+    if (backend.simulationState() == SimulationState::Stopped &&
+        !backend.validate())
+    {
+        statusMessage = "STEP BLOCKED BY DRC";
+        for (const LogMessage& message : backend.validationMessages())
+        {
+            std::cout << (message.isError ? "[DRC ERROR] " : "[DRC] ")
+                      << message.text << '\n';
+        }
+        return;
+    }
+
+    placementDefinitionId = -1;
+    wireMode = false;
+    pendingWireStart.reset();
+    hoveredPin.reset();
+    mouseOperation = MouseOperation::None;
+    if (backend.simulationState() == SimulationState::Running)
+    {
+        backend.pauseSimulation();
+    }
+    if (backend.stepSimulation())
+    {
+        wireAnimationPhase += backend.simulationStepSeconds();
+        statusMessage = "STEP +1 MS - SIMULATION PAUSED";
+    }
+}
+
+bool ProteusApplication::simulationActive() const
+{
+    return backend.simulationState() != SimulationState::Stopped;
+}
+
+void ProteusApplication::updateRuntimeComponentValue(int componentId)
+{
+    ComponentInstance* component = componentById(componentId);
+    if (component != nullptr)
+    {
+        component->setValue(backend.runtimeComponentValue(componentId));
+    }
 }
 
 void ProteusApplication::toggleOscilloscope()
@@ -2216,8 +2404,10 @@ void ProteusApplication::rebuildToolbarHitAreas()
         {"UNDO", ToolbarAction::Undo},
         {"REDO", ToolbarAction::Redo},
         {"DRC", ToolbarAction::Drc},
-        {"RUN", ToolbarAction::RunPause},
+        {"RUN", ToolbarAction::Run},
+        {"PAUSE", ToolbarAction::Pause},
         {"STOP", ToolbarAction::Stop},
+        {"STEP", ToolbarAction::Step},
         {"SCOPE", ToolbarAction::Oscilloscope},
         {"RESET VIEW", ToolbarAction::ResetView}
     };
@@ -2238,7 +2428,7 @@ void ProteusApplication::renderTopToolbar(const SDL_Rect& toolbar)
 
     const char* labels[] = {"SELECT", "WIRE", "ROTATE", "MIRROR H", "MIRROR V",
                             "DELETE", "SAVE", "UNDO", "REDO", "DRC",
-                            "RUN", "STOP", "SCOPE", "RESET VIEW"};
+                            "RUN", "PAUSE", "STOP", "STEP", "SCOPE", "RESET VIEW"};
 
     for (std::size_t index = 0; index < toolbarButtons.size(); ++index)
     {
@@ -2246,14 +2436,14 @@ void ProteusApplication::renderTopToolbar(const SDL_Rect& toolbar)
         const bool active = (action == ToolbarAction::Select &&
                              placementDefinitionId < 0 && !wireMode) ||
                             (action == ToolbarAction::Wire && wireMode) ||
+                            (action == ToolbarAction::Run &&
+                             backend.simulationState() == SimulationState::Running) ||
+                            (action == ToolbarAction::Pause &&
+                             backend.simulationState() == SimulationState::Paused) ||
                             (action == ToolbarAction::Oscilloscope && oscilloscopeVisible);
         const SDL_Color fill = active ? selectedItemColor : buttonColor;
         drawFilledRectangle(toolbarButtons[index].first, fill, whiteText, 1);
-        const std::string label = toolbarButtons[index].second == ToolbarAction::RunPause &&
-                                  simulationRunning
-                                  ? "PAUSE"
-                                  : labels[index];
-        drawPixelTextCentered(label, toolbarButtons[index].first, 1, whiteText);
+        drawPixelTextCentered(labels[index], toolbarButtons[index].first, 1, whiteText);
     }
 
     const SDL_Rect titleArea{LOGICAL_WIDTH - 188, 0, 176, TOOLBAR_HEIGHT};
@@ -2663,14 +2853,13 @@ void ProteusApplication::renderPinHighlights()
 
 void ProteusApplication::renderWires()
 {
+    const bool activeSimulation = simulationActive();
+    const bool runningSimulation =
+            backend.simulationState() == SimulationState::Running;
     for (const WireView& wire : backend.wireViews())
     {
         SDL_Color color{72, 91, 102, 255};
-        if (wire.id == selectedWireId)
-        {
-            color = selectionColor;
-        }
-        else
+        if (activeSimulation)
         {
             switch (wire.state)
             {
@@ -2678,12 +2867,13 @@ void ProteusApplication::renderWires()
                     color = SDL_Color{35, 92, 168, 255};
                     break;
                 case WireLogicState::High:
-                    color = SDL_Color{25, 150, 82, 255};
+                    color = SDL_Color{220, 40, 40, 255};
                     break;
                 case WireLogicState::Undefined:
-                    color = SDL_Color{190, 55, 55, 255};
+                    color = SDL_Color{222, 174, 18, 255};
                     break;
                 case WireLogicState::Floating:
+                    color = SDL_Color{105, 112, 116, 255};
                     break;
             }
         }
@@ -2692,13 +2882,67 @@ void ProteusApplication::renderWires()
         {
             const SDL_Point first = worldToScreen(wire.points[index - 1]);
             const SDL_Point second = worldToScreen(wire.points[index]);
+            if (wire.id == selectedWireId)
+            {
+                thickLineRGBA(renderer,
+                              static_cast<Sint16>(first.x),
+                              static_cast<Sint16>(first.y),
+                              static_cast<Sint16>(second.x),
+                              static_cast<Sint16>(second.y),
+                              7,
+                              selectionColor.r, selectionColor.g,
+                              selectionColor.b, 210);
+            }
             thickLineRGBA(renderer,
                           static_cast<Sint16>(first.x),
                           static_cast<Sint16>(first.y),
                           static_cast<Sint16>(second.x),
                           static_cast<Sint16>(second.y),
-                          wire.id == selectedWireId ? 4 : 3,
+                          3,
                           color.r, color.g, color.b, color.a);
+
+            if (runningSimulation && wire.driven)
+            {
+                const double deltaX = static_cast<double>(second.x - first.x);
+                const double deltaY = static_cast<double>(second.y - first.y);
+                const double length = std::hypot(deltaX, deltaY);
+                if (length > 1.0)
+                {
+                    const double distance = std::fmod(
+                            wireAnimationPhase * 120.0 + index * 19.0,
+                            length);
+                    const double ratio = distance / length;
+                    filledCircleRGBA(
+                            renderer,
+                            static_cast<Sint16>(std::lround(first.x + deltaX * ratio)),
+                            static_cast<Sint16>(std::lround(first.y + deltaY * ratio)),
+                            4,
+                            255, 255, 255, 225);
+                }
+            }
+        }
+
+        if (activeSimulation && wire.points.size() >= 2)
+        {
+            const SDL_Point first = worldToScreen(wire.points[0]);
+            const SDL_Point second = worldToScreen(wire.points[1]);
+            std::ostringstream voltage;
+            if (wire.state == WireLogicState::Undefined ||
+                wire.state == WireLogicState::Floating)
+            {
+                voltage << (wire.state == WireLogicState::Undefined
+                            ? "UNDEFINED" : "FLOATING");
+            }
+            else
+            {
+                voltage << std::fixed << std::setprecision(2)
+                        << wire.voltage << "V";
+            }
+            drawPixelTextAt(voltage.str(),
+                            (first.x + second.x) / 2 + 5,
+                            (first.y + second.y) / 2 - 13,
+                            1,
+                            color);
         }
     }
 
@@ -2939,7 +3183,19 @@ void ProteusApplication::renderStatusBar(const SDL_Rect& statusBar)
     }
     else
     {
-        mode = simulationRunning ? "MODE: SIMULATION RUNNING" : "MODE: SELECT / WIRE";
+        switch (backend.simulationState())
+        {
+            case SimulationState::Running:
+                mode = "RUN " + std::to_string(backend.simulationTimeSeconds()) + "S";
+                break;
+            case SimulationState::Paused:
+                mode = "PAUSED " + std::to_string(backend.simulationTimeSeconds()) +
+                       "S STEP:1MS";
+                break;
+            case SimulationState::Stopped:
+                mode = "MODE: EDIT / SELECT / WIRE";
+                break;
+        }
     }
     drawPixelTextAt(mode, 520, statusBar.y + 14, 1, whiteText);
 
@@ -2954,7 +3210,8 @@ void ProteusApplication::drawSymbol(
         const ComponentDefinition& definition,
         const std::function<SDL_Point(const WorldPoint&)>& mapper,
         const SDL_Color& symbolColor,
-        bool drawPins)
+        bool drawPins,
+        const std::string& instanceValue)
 {
     const auto drawLine = [this, &mapper, &symbolColor](const WorldPoint& first,
                                                         const WorldPoint& second,
@@ -3041,7 +3298,11 @@ void ProteusApplication::drawSymbol(
 
         case SymbolKind::Switch:
             drawLine({-45.0, 0.0}, {-26.0, 0.0});
-            drawLine({-22.0, -2.0}, {22.0, -17.0}, 3);
+            drawLine({-22.0, -2.0},
+                     instanceValue == "CLOSED"
+                     ? WorldPoint{22.0, -2.0}
+                     : WorldPoint{22.0, -17.0},
+                     3);
             drawLine({26.0, 0.0}, {45.0, 0.0});
             {
                 const SDL_Point firstContact = mapper({-24.0, 0.0});
@@ -3098,6 +3359,18 @@ void ProteusApplication::drawSymbol(
                           {halfWidth, halfHeight}, {-halfWidth, halfHeight},
                           {-halfWidth, -halfHeight}});
             const SDL_Point center = mapper({0.0, 0.0});
+            if (definition.id == 10)
+            {
+                const bool pressed = instanceValue == "PRESSED";
+                filledCircleRGBA(renderer,
+                                 static_cast<Sint16>(center.x),
+                                 static_cast<Sint16>(center.y),
+                                 13,
+                                 pressed ? 35 : 120,
+                                 pressed ? 180 : 130,
+                                 pressed ? 80 : 135,
+                                 symbolColor.a);
+            }
             drawPixelTextCentered(definition.prefix,
                                   {center.x - 42, center.y - 11, 84, 22},
                                   1,
@@ -3143,7 +3416,7 @@ void ProteusApplication::renderComponent(const ComponentInstance& component)
         return worldToScreen(component.transformLocalPoint(localPoint));
     };
 
-    drawSymbol(*definition, mapper, color, true);
+    drawSymbol(*definition, mapper, color, true, component.value());
     const SDL_Rect bounds = componentScreenBounds(component, *definition);
     drawPixelTextCentered(component.label() + "  " + component.value(),
                           {bounds.x - 25, bounds.y - 23, bounds.w + 50, 18},
@@ -3188,7 +3461,8 @@ void ProteusApplication::renderPlacementPreview()
                mapper,
                SDL_Color{selectionColor.r, selectionColor.g,
                          selectionColor.b, 145},
-               true);
+               true,
+               "");
     const SDL_Rect bounds = componentScreenBounds(preview, *definition);
     drawOutlineRectangle({bounds.x - 5, bounds.y - 5,
                           bounds.w + 10, bounds.h + 10},
@@ -3216,7 +3490,7 @@ void ProteusApplication::renderDefinitionPreview(
         };
     };
 
-    drawSymbol(definition, mapper, darkText, true);
+    drawSymbol(definition, mapper, darkText, true, "");
     drawPixelTextCentered(definition.name,
                           {previewArea.x,
                            previewArea.y + previewArea.h - 15,

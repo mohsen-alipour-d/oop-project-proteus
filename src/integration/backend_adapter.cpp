@@ -157,7 +157,8 @@ void BackendAdapter::resetProject()
     history = History{};
     drc.log.clear();
     oscilloscope = Oscilloscope{};
-    simulationTime = 0.0;
+    simulationController = SimulationController{};
+    simulationBaseline.clear();
     recordHistory();
 }
 
@@ -328,14 +329,18 @@ std::vector<WireView> BackendAdapter::wireViews() const
             view.points.push_back({point.x, point.y});
         }
 
-        if (wire->netId >= 0 && wire->netId < static_cast<int>(circuit.nets.size()))
+        if (simulationController.active() &&
+            wire->netId >= 0 &&
+            wire->netId < static_cast<int>(circuit.nets.size()))
         {
             Net* net = circuit.nets[wire->netId];
+            view.voltage = net->voltage;
             const bool hasDriver = std::any_of(net->pins.begin(), net->pins.end(),
                                                [](const Pin* pin)
                                                {
                                                    return pin->drivesNet();
                                                });
+            view.driven = hasDriver;
             if (!hasDriver)
             {
                 result.push_back(view);
@@ -436,7 +441,8 @@ bool BackendAdapter::undo()
         applyDefinitionGeometry(*component, definitionIdFor(*component));
     }
     circuit.refreshWires();
-    simulationTime = 0.0;
+    simulationController = SimulationController{};
+    simulationBaseline.clear();
     return true;
 }
 
@@ -453,7 +459,8 @@ bool BackendAdapter::redo()
         applyDefinitionGeometry(*component, definitionIdFor(*component));
     }
     circuit.refreshWires();
-    simulationTime = 0.0;
+    simulationController = SimulationController{};
+    simulationBaseline.clear();
     return true;
 }
 
@@ -491,7 +498,8 @@ bool BackendAdapter::load(const std::string& path)
     history = History{};
     oscilloscope = Oscilloscope{};
     recordHistory();
-    simulationTime = 0.0;
+    simulationController = SimulationController{};
+    simulationBaseline.clear();
     return true;
 }
 
@@ -550,19 +558,194 @@ void BackendAdapter::step(double dt)
     {
         return;
     }
-    simulationTime += dt;
-    for (Component* component : circuit.components)
+
+    // Compatibility entry point for older tests/clients.
+    if (simulationController.state() != SimulationState::Running)
     {
-        component->step(dt, simulationTime);
+        startSimulation();
     }
-    circuit.propagateVoltages();
-    oscilloscope.update(circuit, simulationTime);
+    updateSimulation(dt);
+}
+
+void BackendAdapter::startSimulation()
+{
+    prepareSimulationSession();
+    simulationController.run();
+    oscilloscope.start();
+    evaluateCircuit(0.0);
+}
+
+void BackendAdapter::pauseSimulation()
+{
+    simulationController.pause();
+    oscilloscope.pause();
+}
+
+void BackendAdapter::updateSimulation(double dt)
+{
+    const double advanced = simulationController.tick(dt);
+    if (advanced > 0.0)
+    {
+        evaluateCircuit(advanced);
+    }
+}
+
+bool BackendAdapter::stepSimulation()
+{
+    prepareSimulationSession();
+    oscilloscope.start();
+    const double advanced = simulationController.stepOnce();
+    evaluateCircuit(advanced);
+    oscilloscope.pause();
+    return advanced > 0.0;
 }
 
 void BackendAdapter::stopSimulation()
 {
-    simulationTime = 0.0;
+    if (!simulationBaseline.empty())
+    {
+        fileManager.deserialize(circuit, simulationBaseline);
+        for (Component* component : circuit.components)
+        {
+            applyDefinitionGeometry(*component, definitionIdFor(*component));
+        }
+        circuit.refreshWires();
+    }
+
+    simulationController.stop();
+    simulationBaseline.clear();
     oscilloscope.stop();
+}
+
+SimulationState BackendAdapter::simulationState() const
+{
+    return simulationController.state();
+}
+
+double BackendAdapter::simulationTimeSeconds() const
+{
+    return simulationController.timeSeconds();
+}
+
+double BackendAdapter::simulationStepSeconds() const
+{
+    return simulationController.stepSizeSeconds();
+}
+
+bool BackendAdapter::toggleSwitch(int componentId)
+{
+    if (!simulationController.active())
+    {
+        return false;
+    }
+
+    Component* component = componentById(componentId);
+    if (component == nullptr || definitionIdFor(*component) != 4)
+    {
+        return false;
+    }
+
+    static_cast<Switch&>(*component).toggle();
+    evaluateCircuit(0.0);
+    return true;
+}
+
+bool BackendAdapter::setPushButtonPressed(int componentId, bool pressed)
+{
+    if (!simulationController.active())
+    {
+        return false;
+    }
+
+    Component* component = componentById(componentId);
+    if (component == nullptr || definitionIdFor(*component) != 10)
+    {
+        return false;
+    }
+
+    PushButton& button = static_cast<PushButton&>(*component);
+    if (pressed)
+    {
+        button.press();
+    }
+    else
+    {
+        button.release();
+    }
+    evaluateCircuit(0.0);
+    return true;
+}
+
+bool BackendAdapter::adjustInteractiveValue(int componentId, int direction)
+{
+    if (!simulationController.active() || direction == 0)
+    {
+        return false;
+    }
+
+    Component* component = componentById(componentId);
+    if (component == nullptr)
+    {
+        return false;
+    }
+
+    const int definitionId = definitionIdFor(*component);
+    if (definitionId == 0)
+    {
+        Resistor& resistor = static_cast<Resistor&>(*component);
+        const double factor = direction > 0 ? 1.1 : 1.0 / 1.1;
+        resistor.value = std::clamp(resistor.value * factor, 1.0, 1.0e9);
+    }
+    else if (definitionId == 9)
+    {
+        DCSource& source = static_cast<DCSource&>(*component);
+        source.value = std::clamp(source.value +
+                                  (direction > 0 ? 0.5 : -0.5),
+                                  -1000.0,
+                                  1000.0);
+    }
+    else
+    {
+        return false;
+    }
+
+    evaluateCircuit(0.0);
+    return true;
+}
+
+std::string BackendAdapter::runtimeComponentValue(int componentId) const
+{
+    Component* component = componentById(componentId);
+    if (component == nullptr)
+    {
+        return {};
+    }
+    return displayValueFor(*component, definitionIdFor(*component));
+}
+
+void BackendAdapter::prepareSimulationSession()
+{
+    if (simulationController.state() == SimulationState::Stopped)
+    {
+        simulationBaseline = fileManager.serialize(circuit);
+    }
+}
+
+void BackendAdapter::evaluateCircuit(double dt)
+{
+    // Several zero-time settling passes make cascaded combinational changes
+    // visible immediately without advancing the simulation clock again.
+    constexpr int SETTLING_PASSES = 4;
+    for (int pass = 0; pass < SETTLING_PASSES; ++pass)
+    {
+        for (Component* component : circuit.components)
+        {
+            component->step(pass == 0 ? dt : 0.0,
+                            simulationController.timeSeconds());
+        }
+        circuit.propagateVoltages();
+    }
+    oscilloscope.update(circuit, simulationController.timeSeconds());
 }
 
 Component* BackendAdapter::componentById(int componentId) const

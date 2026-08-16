@@ -52,8 +52,10 @@ enum class ToolbarAction
     Undo,
     Redo,
     Drc,
-    RunPause,
+    Run,
+    Pause,
     Stop,
+    Step,
     Oscilloscope,
     ResetView
 };
@@ -161,7 +163,8 @@ private:
     std::optional<PinHandle> hoveredPin;
     int selectedWireId = -1;
     bool wireMode = false;
-    bool simulationRunning = false;
+    int activePushButtonId = -1;
+    double wireAnimationPhase = 0.0;
     bool oscilloscopeVisible = false;
     int nextOscilloscopeChannel = 0;
     Uint64 lastFrameTicks = 0;
@@ -302,10 +305,14 @@ private:
     void undoProject();
     void redoProject();
     void runDesignRuleCheck();
-    void toggleSimulation();
+    void startSimulation();
+    void pauseSimulation();
     void stopSimulation();
+    void stepSimulation();
     void toggleOscilloscope();
     void recordProjectChange();
+    bool simulationActive() const;
+    void updateRuntimeComponentValue(int componentId);
 
     void openPropertiesDialog(int componentId);
     void closePropertiesDialog(bool saveChanges);
@@ -368,7 +375,8 @@ private:
     void drawSymbol(const ComponentDefinition& definition,
                     const std::function<SDL_Point(const WorldPoint&)>& mapper,
                     const SDL_Color& symbolColor,
-                    bool drawPins);
+                    bool drawPins,
+                    const std::string& instanceValue);
     void renderSelectionRectangle();
     void renderContextMenu();
     void renderPropertiesDialog();

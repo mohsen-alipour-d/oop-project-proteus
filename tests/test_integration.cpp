@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cmath>
 #include <iostream>
 #include <vector>
 
@@ -26,6 +27,10 @@ int main()
 {
     BackendAdapter backend;
 
+    check(PinHandle{1, 0} != PinHandle{1, 1} &&
+          !(PinHandle{1, 0} != PinHandle{1, 0}),
+          "pin handles support C++17 inequality comparison");
+
     const int ground = backend.addComponent(7, "GND1", "0V", {0.0, 80.0});
     const int source = backend.addComponent(2, "BAT1", "5V", {0.0, 0.0});
     const int resistor = backend.addComponent(0, "R1", "1K", {100.0, 0.0});
@@ -46,15 +51,42 @@ int main()
     const int measuredWireId = backend.wireViews().front().id;
     check(backend.attachOscilloscopeChannel(0, measuredWireId),
           "a frontend-selected wire attaches to an oscilloscope channel");
-    backend.startOscilloscope();
-    backend.step(0.01);
+    check(backend.simulationState() == SimulationState::Stopped &&
+          backend.simulationTimeSeconds() == 0.0,
+          "simulation starts in stopped edit mode");
+    backend.startSimulation();
+    backend.updateSimulation(0.01);
     const std::vector<ScopeChannelView> scopeChannels =
             backend.oscilloscopeChannels();
     check(scopeChannels.size() == 2 &&
           scopeChannels.front().netId >= 0 &&
           !scopeChannels.front().history.empty(),
           "oscilloscope samples the attached backend net");
-    backend.pauseOscilloscope();
+    check(backend.simulationState() == SimulationState::Running &&
+          std::abs(backend.simulationTimeSeconds() - 0.01) < 1.0e-9,
+          "Run advances the internal simulation clock");
+    backend.pauseSimulation();
+    const double pausedTime = backend.simulationTimeSeconds();
+    backend.updateSimulation(0.02);
+    check(backend.simulationState() == SimulationState::Paused &&
+          backend.simulationTimeSeconds() == pausedTime,
+          "Pause freezes time and pending simulation state");
+    check(backend.stepSimulation() &&
+          backend.simulationState() == SimulationState::Paused &&
+          std::abs(backend.simulationTimeSeconds() - pausedTime - 0.001) < 1.0e-9,
+          "Step advances exactly 1 ms and remains paused");
+    backend.stopSimulation();
+    bool stoppedWiresUseDefaultState = true;
+    for (const WireView& wire : backend.wireViews())
+    {
+        stoppedWiresUseDefaultState =
+                wire.state == WireLogicState::Floating &&
+                stoppedWiresUseDefaultState;
+    }
+    check(backend.simulationState() == SimulationState::Stopped &&
+          backend.simulationTimeSeconds() == 0.0 &&
+          stoppedWiresUseDefaultState,
+          "Stop resets time, runtime events and live wire state");
     check(backend.validate(), "integrated circuit passes DRC");
 
     backend.recordHistory();
@@ -91,6 +123,59 @@ int main()
           "loaded backend rebuilds the frontend component list");
     check(loaded.wireViews().size() == 2,
           "loaded project restores wires");
+
+    BackendAdapter interactive;
+    const int liveButton = interactive.addComponent(
+            10, "PB1", "RELEASED", {0.0, 0.0});
+    const int liveSwitch = interactive.addComponent(
+            4, "SW1", "OPEN", {100.0, 0.0});
+    const int liveResistor = interactive.addComponent(
+            0, "R1", "1K", {200.0, 0.0});
+    const int liveGround = interactive.addComponent(
+            7, "GND1", "0V", {200.0, 80.0});
+    check(interactive.connectPins({liveButton, 0}, {liveSwitch, 0}) &&
+          interactive.connectPins({liveSwitch, 1}, {liveResistor, 0}) &&
+          interactive.connectPins({liveResistor, 1}, {liveGround, 0}),
+          "interactive Section 8 test circuit is wired");
+    check(interactive.validate(),
+          "interactive Section 8 circuit passes DRC before Run");
+    const int switchedWireId = interactive.wireViews()[1].id;
+    interactive.startSimulation();
+    check(interactive.setPushButtonPressed(liveButton, true) &&
+          interactive.toggleSwitch(liveSwitch),
+          "push button and switch accept live interaction while running");
+    WireLogicState switchedState = WireLogicState::Floating;
+    for (const WireView& wire : interactive.wireViews())
+    {
+        if (wire.id == switchedWireId)
+        {
+            switchedState = wire.state;
+        }
+    }
+    check(switchedState == WireLogicState::High,
+          "live interaction propagates HIGH across the complete switched net");
+    interactive.pauseSimulation();
+    check(interactive.setPushButtonPressed(liveButton, false),
+          "interactive components remain usable while paused");
+    for (const WireView& wire : interactive.wireViews())
+    {
+        if (wire.id == switchedWireId)
+        {
+            switchedState = wire.state;
+        }
+    }
+    check(switchedState == WireLogicState::Low,
+          "paused live interaction immediately updates the wire to LOW");
+    const std::string originalResistance =
+            interactive.runtimeComponentValue(liveResistor);
+    check(interactive.adjustInteractiveValue(liveResistor, 1) &&
+          interactive.runtimeComponentValue(liveResistor) != originalResistance,
+          "component values can be adjusted live during simulation");
+    interactive.stopSimulation();
+    check(interactive.runtimeComponentValue(liveButton) == "RELEASED" &&
+          interactive.runtimeComponentValue(liveSwitch) == "OPEN" &&
+          interactive.runtimeComponentValue(liveResistor) == originalResistance,
+          "Stop restores the editable pre-simulation component snapshot");
 
     BackendAdapter catalog;
     const std::vector<std::string> defaultValues = {
