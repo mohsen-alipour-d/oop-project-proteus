@@ -4,8 +4,10 @@
 
 ClockGenerator::ClockGenerator(string name, double x, double y, double period) : Component(name, x, y) {
     this->period = period;
-    addPin(0, 0);
-    pins[0].isOutput = true;
+    addPin(10, 0);   // OUT
+    addPin(-10, 0);  // GND reference
+    pins[0].setDirection(PinDirection::Output);
+    pins[1].setDirection(PinDirection::Output);
 }
 
 void ClockGenerator::step(double dt, double simTime) {
@@ -14,4 +16,5 @@ void ClockGenerator::step(double dt, double simTime) {
         pins[0].voltage = highVoltage;
     else
         pins[0].voltage = 0;
+    pins[1].voltage = 0;
 }

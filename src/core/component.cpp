@@ -16,10 +16,13 @@ Vector2D Component::pinWorldPos(const Vector2D& local) const {
     double px = local.x;
     double py = local.y;
 
+    // Horizontal mirroring reflects across the horizontal axis (Y changes),
+    // while vertical mirroring reflects across the vertical axis (X changes).
+    // This matches the editor terminology used by the UI.
     if (mirroredH)
-        px = -px;
-    if (mirroredV)
         py = -py;
+    if (mirroredV)
+        px = -px;
 
     int steps = rotation / 90;
     for (int i = 0; i < steps; i++) {

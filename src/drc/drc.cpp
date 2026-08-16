@@ -50,9 +50,11 @@ bool DRC::checkFloating(Circuit& c) {
 
 bool DRC::validate(Circuit& c) {
     log.clear();
-    if (!c.hasGround())
-        log.error("Circuit has no ground reference");
     bool ok = true;
+    if (!c.hasGround()) {
+        log.error("Circuit has no ground reference");
+        ok = false;
+    }
     if (!checkShorts(c))
         ok = false;
     if (!checkFloating(c))

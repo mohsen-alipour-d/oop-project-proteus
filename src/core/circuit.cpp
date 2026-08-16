@@ -34,6 +34,8 @@ void Circuit::clear() {
     junctions.clear();
     nets.clear();
     components.clear();
+    nextComponentId = 0;
+    nextWireId = 0;
 }
 
 void Circuit::addComponent(Component* c) {

@@ -1,71 +1,151 @@
-# oop-project-proteus
+# Proteus OOP Simulator — Integrated Project
 
-A Proteus-like schematic editor and circuit simulator, built in modern C++
-as the object-oriented programming course project (Spring 2026).
+نسخهٔ یکپارچهٔ پروژهٔ شبیه‌ساز Proteus که رابط گرافیکی بخش‌های ۱ تا ۴ را به
+Backend بخش‌های ۵، ۶، ۷، ۹، ۱۰ و ۱۱ وصل می‌کند. پروژه فقط یک `main.cpp` دارد
+و کدها به Targetهای مستقل CMake تقسیم شده‌اند تا کار تیمی و Merge در Git کمترین
+تداخل را داشته باشد.
 
-The repository currently contains the complete backend: component library,
-wiring engine, electrical nets, measurement tools, file management and
-design rule checks. The graphical frontend and the simulation control are
-being built on top of this backend by other team members.
+## ساختار پروژه
 
-## Features (backend)
+| مسیر | مسئولیت |
+|---|---|
+| `src/main.cpp` | تنها Entry Point پروژه؛ بخش‌ها با کامنت جدا شده‌اند |
+| `src/ui` | منو، Canvas، کتابخانهٔ قطعات و ویرایش گرافیکی — بخش‌های ۱ تا ۴ |
+| `src/integration` | تبدیل رویدادهای UI به عملیات Backend و همگام‌سازی دو لایه |
+| `src/core` | `Component`، `Pin` و `Circuit` |
+| `src/wiring` | Wire، Junction و Net — بخش‌های سیم‌کشی |
+| `src/components` | قطعات آنالوگ، دیجیتال، تعاملی و پیشرفته |
+| `src/mcu` | MCU، حافظه، رجیستر، Firmware loader و Decoder — بخش ۷ |
+| `src/measurement` | Voltmeter، Ammeter، Probe و Oscilloscope |
+| `src/file` | Save/Load، Recent Projects و Undo/Redo |
+| `src/drc` | بررسی اتصال کوتاه، ورودی شناور و Ground |
+| `tests` | تست‌های Backend و تست اتصال Frontend/Backend |
 
-- Component library
-  - Sources: ground, DC source, battery, clock generator
-  - Passive: resistor, capacitor, inductor
-  - Interactive: switch, push button, LED, 7-segment display
-  - Digital: AND, OR, NOT, XOR, NAND gates and D flip-flop,
-    with propagation delay and undefined-level handling
-- Wiring engine
-  - automatic pin detection with a sensitivity radius
-  - 90-degree orthogonal wire routing
-  - junction dots for real electrical connections
-  - wire dragging and whole-net deletion
-- Electrical nets built with union-find, plus voltage propagation
-- Measurement tools: voltage probe, voltmeter, ammeter, oscilloscope
-- File management: save / save-as / load, recent projects, undo / redo
-- Design rule check: short-circuit and floating-input detection with a log buffer
+سه Target اصلی CMake عبارت‌اند از:
 
-## Build
+- `proteus_backend`: تمام کدهای Backend، بدون وابستگی گرافیکی.
+- `proteus_integration`: Adapter و مدل قطعات UI؛ قابل تست بدون SDL.
+- `ProteusOopSimulator`: برنامهٔ گرافیکی نهایی.
 
-Requires CMake >= 3.26 and a C++23 compiler.
+این تفکیک باعث می‌شود تغییرات Frontend، Backend و Integration در فایل‌های جدا
+انجام شوند. فایل‌های خروجی کاربر، Build و تنظیمات IDE نیز در `.gitignore` هستند.
 
-    cmake -S . -B build
-    cmake --build build
+## قابلیت‌های متصل‌شده
 
-Or open the folder in CLion and let it load the CMake project.
+- ساخت، حذف، جابه‌جایی، Rotate، Mirror و ویرایش قطعات از UI و ثبت مستقیم در `Circuit`
+- کتابخانهٔ کامل قطعات پایه، دیجیتال، ADC/DAC، MCU، حافظه، LCD، Keypad و ابزار اندازه‌گیری
+- ساخت Wire با کلیک روی دو Pin، انتخاب و حذف Wire و افزودن Junction
+- رسم سیم‌ها با رنگ وضعیت منطقی `LOW`، `HIGH` و `UNDEFINED`
+- Save/Load و Recent Project از طریق `FileManager`
+- Undo/Redo مبتنی بر Snapshot بعد از هر تغییر معتبر کاربر
+- DRC قبل از شروع شبیه‌سازی
+- Run/Pause/Stop و اجرای گام‌های Backend در حلقهٔ اصلی UI
 
-## Run
+## کنترل‌های مهم
 
-Two executables are produced:
+- قرار دادن قطعه: قطعه را از **Active Components** انتخاب و روی Canvas کلیک کنید.
+- سیم‌کشی: روی Pin اول و سپس Pin دوم کلیک کنید.
+- انتخاب Wire: روی سیم کلیک کنید و `Delete` بزنید.
+- Junction: نشانگر موس را روی تقاطع دو سیم ببرید و `J` بزنید.
+- `Ctrl+S`: ذخیره در `proteus_project.txt`.
+- `Ctrl+Z` / `Ctrl+Y`: Undo / Redo.
+- `R`، `H`، `V`: Rotate و Mirror قطعات انتخاب‌شده.
+- دکمه‌های `DRC`، `RUN/PAUSE` و `STOP`: کنترل بررسی و شبیه‌سازی.
 
-- `oop_project_proteus` : small backend demo and integration check
-- `run_tests`           : unit tests (21 checks)
+## وارد کردن و Build در CLion روی Windows
 
-  ./build/oop_project_proteus
-  ./build/run_tests
+### ۱. تنظیم Compiler
 
-## Project layout
+در CLion به مسیر زیر بروید:
 
-    src/core         base classes: vector2d, pin, component, circuit
-    src/wiring       wire, junction, net
-    src/components   sources / passive / interactive / digital
-    src/measurement  probe, voltmeter, ammeter, oscilloscope
-    src/file         serialization, file manager, undo/redo history
-    src/drc          design rule check and log buffer
-    tests            unit tests
-    docs             team documents
+`File > Settings > Build, Execution, Deployment > Toolchains`
 
-## Team
+یک Toolchain از نوع **MinGW** بسازید و در `Toolset` گزینهٔ **Bundled MinGW**
+یا مسیر یک MinGW سالم را انتخاب کنید. صبر کنید تا CMake، C Compiler، C++ Compiler،
+Debugger و Build Tool همگی شناسایی شوند. اگر کنار `g++.exe` خطا می‌بینید، پروژه هنوز
+قابل Build نیست و باید همین Toolchain را اصلاح کنید.
 
-- Mohsen: backend (sections 5, 6, 9, 10, 11)
-- Melika: menus, canvas, MCU library (sections 1, 2, 7)
-- Hana: library editor, simulation control (sections 3, 4, 8)
-- final integration of 10/11 with the UI: shared
+### ۲. نصب SDL2 و SDL2_gfx با vcpkg
 
-## Git workflow
+در PowerShell یا CMD:
 
-- `main` : stable integrated code
-- `feature/backend-core` : backend development branch
-- each member works on their own feature branch and merges into main
-  after the part is tested; see `docs/team_git_guide.md`
+```powershell
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg.exe install sdl2:x64-mingw-static sdl2-gfx:x64-mingw-static
+```
+
+اگر از Toolchain نوع Visual Studio/MSVC استفاده می‌کنید، به‌جای Triplet بالا از
+`x64-windows` استفاده کنید. Compiler و Triplet باید با هم سازگار باشند.
+
+### ۳. باز کردن پروژه
+
+ZIP را Extract کنید. در CLion گزینهٔ `File > Open` را بزنید و دقیقاً پوشه‌ای را
+انتخاب کنید که فایل `CMakeLists.txt` در ریشهٔ آن قرار دارد:
+
+```text
+ProteusOopIntegrated/
+├── CMakeLists.txt
+├── README.md
+├── src/
+└── tests/
+```
+
+پوشهٔ `src` یا خود فایل `main.cpp` را جداگانه باز نکنید.
+
+### ۴. معرفی vcpkg به CMake
+
+به مسیر زیر بروید:
+
+`File > Settings > Build, Execution, Deployment > CMake`
+
+در Profile مربوط به Debug، Toolchain مرحلهٔ ۱ را انتخاب و در **CMake options** بنویسید:
+
+```text
+-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-mingw-static
+```
+
+سپس `Reload CMake Project` را اجرا کنید. اگر مسیر vcpkg شما متفاوت است، همان مسیر
+واقعی را جایگزین کنید.
+
+### ۵. Build و Run
+
+از لیست Run Configuration بالای CLion، Target زیر را انتخاب کنید:
+
+```text
+ProteusOopSimulator
+```
+
+سپس `Build > Build Project` و بعد Run را بزنید. برای تست‌ها نیز Targetهای زیر در
+همان لیست موجودند:
+
+```text
+run_tests
+run_integration_tests
+```
+
+## Build از Terminal
+
+برای MinGW و vcpkg:
+
+```powershell
+cmake -S . -B build -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+  -DVCPKG_TARGET_TRIPLET=x64-mingw-static
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+اگر فقط Backend را می‌خواهید و SDL نصب نیست:
+
+```powershell
+cmake -S . -B build-backend -DPROTEUS_BUILD_GUI=OFF
+cmake --build build-backend
+ctest --test-dir build-backend --output-on-failure
+```
+
+راهنمای رسمی مرتبط:
+
+- [باز کردن پروژهٔ CMake در CLion](https://www.jetbrains.com/help/clion/clion-quick-start-guide.html)
+- [تنظیم MinGW در CLion](https://www.jetbrains.com/help/clion/quick-tutorial-on-configuring-clion-on-windows.html)
+- [اتصال vcpkg به CMake](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration)

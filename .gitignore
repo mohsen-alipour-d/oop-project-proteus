@@ -13,3 +13,6 @@ build/
 *.log
 test_circuit.txt
 recent_projects.txt
+proteus_project.txt
+integration_test_project.txt
+integration_catalog_project.txt
