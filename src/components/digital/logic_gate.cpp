@@ -11,7 +11,6 @@ LogicGate::LogicGate(string name, double x, double y, int inputCount) : Componen
 
 void LogicGate::step(double dt, double simTime) {
     vector<LogicLevel> ins;
-    bool hasUndefined = false;
 
     for (int i = 0; i + 1 < (int)pins.size(); i++) {
         LogicLevel l;
@@ -24,12 +23,10 @@ void LogicGate::step(double dt, double simTime) {
         } else {
             l = voltageToLogic(pins[i].voltage);
         }
-        if (l == UNDEFINED)
-            hasUndefined = true;
         ins.push_back(l);
     }
 
-    LogicLevel out = hasUndefined ? UNDEFINED : apply(ins);
+    LogicLevel out = apply(ins);
 
     if (out != lastOut) {
         lastOut = out;

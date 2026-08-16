@@ -551,6 +551,45 @@ static void testStateSerialization() {
     check(((DFlipFlop*)loaded.components[1])->stored == HIGH, "flip-flop state restored");
 }
 
+static void testGateUndefined() {
+    OrGate or1("O1", 0, 0, 2);
+    or1.propagationDelay = 0;
+    or1.pins[0].connected = true;
+    or1.pins[1].connected = true;
+    or1.pins[0].voltage = 5;
+    or1.pins[1].voltage = 1.4;
+    or1.step(0.01, 0);
+    check(near(or1.pins[2].voltage, 5), "OR with HIGH input stays HIGH despite undefined");
+
+    or1.pins[0].voltage = 0;
+    or1.step(0.01, 0.01);
+    check(near(or1.pins[2].voltage, 1.4), "OR with LOW and undefined is undefined");
+
+    OrGate or2("O2", 0, 0, 2);
+    or2.propagationDelay = 0;
+    or2.pins[0].connected = true;
+    or2.pins[1].connected = true;
+    or2.pins[0].voltage = 0;
+    or2.pins[1].voltage = 5;
+    or2.step(0.01, 0);
+    check(near(or2.pins[2].voltage, 5), "OR outputs HIGH when one input HIGH");
+
+    or2.pins[0].voltage = 0;
+    or2.pins[1].voltage = 0;
+    or2.step(0.01, 0.01);
+    check(near(or2.pins[2].voltage, 0), "OR outputs LOW when both LOW");
+
+    AndGate and1("A1", 0, 0, 2);
+    and1.propagationDelay = 0;
+    and1.pins[0].connected = true;
+    and1.pins[1].connected = true;
+    and1.pins[0].voltage = 0;
+    and1.pins[1].voltage = 1.4;
+    and1.step(0.01, 0);
+    check(near(and1.pins[2].voltage, 0), "AND with LOW input stays LOW despite undefined");
+}
+
+
 
 int main() {
     testWireRouting();
@@ -559,6 +598,7 @@ int main() {
     testSerialize();
     testUndoRedo();
     testGates();
+    testGateUndefined();
     testFlipFlop();
     testPinDirectionCompatibility();
     testADC();
