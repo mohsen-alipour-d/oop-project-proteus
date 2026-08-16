@@ -7,6 +7,8 @@ Inductor::Inductor(string name, double x, double y, double value) : Component(na
 }
 
 void Inductor::step(double dt, double simTime) {
+    if (dt <= 0.0)
+        return;
     double v = pins[0].voltage - pins[1].voltage;
     lastCurrent = lastCurrent + (v / value) * dt;
     pins[0].current = lastCurrent;

@@ -23,6 +23,7 @@ void check(bool condition, const std::string& name)
 }
 }
 
+
 int main()
 {
     BackendAdapter backend;

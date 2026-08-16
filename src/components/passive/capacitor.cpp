@@ -7,6 +7,8 @@ Capacitor::Capacitor(string name, double x, double y, double value) : Component(
 }
 
 void Capacitor::step(double dt, double simTime) {
+    if (dt <= 0.0)
+        return;
     double v = pins[0].voltage - pins[1].voltage;
     double i = value * (v - lastVoltage) / dt;
     lastVoltage = v;
