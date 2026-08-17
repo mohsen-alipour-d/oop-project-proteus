@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feature/front-back-integrated-version ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
+
+      - name: Configure
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      - name: Backend tests
+        run: ./build/run_tests
+
+      - name: Integration tests
+        run: ./build/run_integration_tests

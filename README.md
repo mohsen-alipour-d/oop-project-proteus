@@ -3,6 +3,7 @@
 A complete, object-oriented electronic circuit simulator inspired by Proteus,
 written in modern **C++17** with an **SDL2** graphical frontend.
 
+![CI](https://github.com/mohsen-alipour-d/oop-project-proteus/actions/workflows/ci.yml/badge.svg)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus)
 ![SDL2](https://img.shields.io/badge/UI-SDL2-ff69b4?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-155%20passed-brightgreen?style=flat-square)
