@@ -1,238 +1,190 @@
-# Proteus OOP Simulator — Integrated Project
+# ⚡ Proteus OOP Circuit Simulator
 
-نسخهٔ یکپارچهٔ پروژهٔ شبیه‌ساز Proteus که رابط گرافیکی بخش‌های ۱ تا ۴، کنترل
-شبیه‌سازی بخش ۸ و Backend بخش‌های ۵، ۶، ۷، ۹، ۱۰ و ۱۱ را به هم وصل می‌کند.
-پروژه فقط یک `main.cpp` دارد
-و کدها به Targetهای مستقل CMake تقسیم شده‌اند تا کار تیمی و Merge در Git کمترین
-تداخل را داشته باشد.
+A complete, object-oriented electronic circuit simulator inspired by Proteus,
+written in modern **C++17** with an **SDL2** graphical frontend.
 
-## ساختار پروژه
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus)
+![SDL2](https://img.shields.io/badge/UI-SDL2-ff69b4?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-155%20passed-brightgreen?style=flat-square)
+![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
+![Standard](https://img.shields.io/badge/paradigm-OOP-blue?style=flat-square)
 
-| مسیر | مسئولیت |
+> 🇮🇷 Persian documentation (راهنماهای فارسی) is available under [`docs/`](docs/).
+
+---
+
+## 📑 Table of Contents
+
+- [Overview](#-overview)
+- [Feature Highlights](#-feature-highlights)
+- [Architecture](#-architecture)
+- [Repository Layout](#-repository-layout)
+- [Getting Started](#-getting-started)
+- [Running the Tests](#-running-the-tests)
+- [Documentation](#-documentation)
+- [Team & Division of Labor](#-team--division-of-labor)
+- [Project Status](#-project-status)
+
+---
+
+## 🎯 Overview
+
+Course project for **Object-Oriented Programming**, Faculty of Electrical
+Engineering, **Sharif University of Technology**.
+The goal was to design and implement a Proteus-like schematic editor and
+circuit simulator with a clean, layered, testable OOP architecture.
+
+The result is a **mixed-signal simulator**: an analog MNA solver cooperates
+with a digital propagation engine, driving 25 component types, live
+interaction, measurement instruments and a small 8051-style microcontroller.
+
+---
+
+## ✨ Feature Highlights
+
+| Area | Capabilities |
 |---|---|
-| `src/main.cpp` | تنها Entry Point پروژه؛ بخش‌ها با کامنت جدا شده‌اند |
-| `src/ui` | منو، Canvas، کتابخانهٔ قطعات و ویرایش گرافیکی — بخش‌های ۱ تا ۴ |
-| `src/integration` | تبدیل رویدادهای UI به عملیات Backend و همگام‌سازی دو لایه |
-| `src/core` | `Component`، `Pin` و `Circuit` |
-| `src/wiring` | Wire، Junction و Net — بخش‌های سیم‌کشی |
-| `src/simulation` | کنترل Run/Pause/Stop/Step و حل‌کنندهٔ Mixed-Signal آنالوگ/دیجیتال |
-| `src/components` | قطعات آنالوگ، دیجیتال، تعاملی و پیشرفته |
-| `src/mcu` | MCU، حافظه، رجیستر، Firmware loader و Decoder — بخش ۷ |
-| `src/measurement` | Voltmeter، Ammeter، Probe و Oscilloscope |
-| `src/file` | Save/Load، Recent Projects و Undo/Redo |
-| `src/drc` | بررسی اتصال کوتاه، ورودی شناور و Ground |
-| `tests` | تست‌های Backend و تست اتصال Frontend/Backend |
+| **Components** | 25 types in 7 categories: sources, passive, interactive, digital gates, ADC/DAC, MCU/Memory/LCD/Keypad, measurement |
+| **Simulation** | Run / Pause / Step / Stop state machine, live editing while running, mixed analog+digital settling |
+| **Analog engine** | Modified Nodal Analysis (MNA), Backward-Euler C/L models, piecewise LED, two-terminal sources with internal resistance |
+| **Digital engine** | 3-valued logic (LOW/HIGH/UNDEFINED) with dominance rules, propagation delay, edge-triggered D-FF |
+| **MCU** | 8051-style ISA + educational ISA, RAM/Flash, bidirectional GPIO ports, Intel-HEX firmware loader |
+| **Instruments** | Voltmeter, Ammeter, 2-channel Oscilloscope, voltage probe |
+| **Editor** | Grid snap, rotate/mirror, box selection, junctions, 90° wiring, undo/redo, properties dialog |
+| **Files** | Token-based serialization, recent projects, hardened deserialization |
+| **Quality** | DRC (ground / shorts / floating / islands), **155 automated tests** |
 
-سه Target اصلی CMake عبارت‌اند از:
+---
 
-- `proteus_backend`: تمام کدهای Backend، بدون وابستگی گرافیکی.
-- `proteus_integration`: Adapter و مدل قطعات UI؛ قابل تست بدون SDL.
-- `ProteusOopSimulator`: برنامهٔ گرافیکی نهایی.
+## 🏗️ Architecture
 
-این تفکیک باعث می‌شود تغییرات Frontend، Backend و Integration در فایل‌های جدا
-انجام شوند. فایل‌های خروجی کاربر، Build و تنظیمات IDE نیز در `.gitignore` هستند.
+The codebase is strictly layered; the UI never touches the domain directly.
 
-## قابلیت‌های متصل‌شده
-
-- ساخت، حذف، جابه‌جایی، Rotate، Mirror و ویرایش قطعات از UI و ثبت مستقیم در `Circuit`
-- کتابخانهٔ کامل قطعات پایه، دیجیتال، ADC/DAC، MCU، حافظه، LCD، Keypad و ابزار اندازه‌گیری
-- حالت صریح `WIRE` با تشخیص خودکار Pin، Highlight و Snap روی Pin دوم
-- رسم زندهٔ کل Net: `HIGH` قرمز، `LOW` آبی، `UNDEFINED` زرد و `FLOATING` خاکستری
-- انیمیشن حرکت روی سیم و نمایش ولتاژ هنگام Run؛ حفظ رنگ و فریز انیمیشن در Pause
-- اسیلوسکوپ دوکانالهٔ متصل به Netهای Backend و نمایش زندهٔ Waveform
-- Save/Load و Recent Project از طریق `FileManager`
-- Undo/Redo مبتنی بر Snapshot بعد از هر تغییر معتبر کاربر
-- DRC قبل از شروع شبیه‌سازی
-- دکمه‌های مستقل Run، Pause، Stop و Step با ساعت داخلی و گام ثابت ۱ میلی‌ثانیه
-- تعامل زنده با Switch (کلیک)، Push Button (نگه‌داشتن کلیک) و تغییر مقدار
-  Resistor/DC Source با چرخ موس در زمان Run یا Pause
-- Stop زمان را صفر، رویدادهای معوق را پاک و مدار را به Snapshot قبل از اجرا برمی‌گرداند
-- حل Mixed-Signal برای R/C/L، LED، منابع دوترمیناله، Switch، ADC/DAC و ابزارهای
-  اندازه‌گیری؛ Netهای Passive بسته دیگر به‌اشتباه `FLOATING` گزارش نمی‌شوند
-- رفتار تمام ۲۵ تعریف کتابخانه با تست‌های قطعه‌ای یا مدار یکپارچه پوشش داده شده است
-
-شرح فنی مدل هر کامپوننت و تست‌های آن در
-[`docs/COMPONENT_SIMULATION_AUDIT_FA.md`](docs/COMPONENT_SIMULATION_AUDIT_FA.md)
-قرار دارد.
-
-## وضعیت بخش ۸ نسبت به نسخهٔ قبلی
-
-| قابلیت دستورکار | وضعیت قبلی | وضعیت این نسخه |
-|---|---|---|
-| Run / Pause / Stop | Run/Pause ترکیبی و بدون حالت مستقل | سه حالت مستقل با ساعت داخلی |
-| نمایش زندهٔ سیم | وجود داشت ولی رنگ‌ها مطابق دستورکار نبود و در Stop باقی می‌ماند | کامل؛ رنگ استاندارد، ولتاژ و انیمیشن کل Net |
-| تعامل زنده | کلاس‌های Backend وجود داشتند ولی از UI قابل استفاده نبودند | کلیک زندهٔ Switch و Push Button در Run/Pause |
-| تغییر زندهٔ مقدار | وجود نداشت | اسکرول روی Resistor و DC Source؛ تغییر DC Source مستقیماً روی ADC دیده می‌شود |
-| Step | وجود نداشت | گام دقیق ۱ ms در حالت Paused |
-
-در کتابخانهٔ قطعات فعلی Component مستقلی با نام Potentiometer تعریف نشده است؛ به
-همین دلیل رفتار تغییر زندهٔ مقدار برای Resistor موجود و DC Source پیاده‌سازی شده
-تا هم تغییر مقاومت و هم اثر آنالوگ مستقیم روی ورودی‌هایی مثل ADC قابل آزمایش باشد.
-
-## کنترل‌های مهم
-
-- قرار دادن قطعه: قطعه را از **Active Components** انتخاب و روی Canvas کلیک کنید.
-- مرجع منابع: در `BATTERY` و `DC SOURCE` پین `-` را به GND/مسیر برگشت و پین
-  `+` را به بار وصل کنید. در `CLOCK` نیز پین `GND` باید به Ground همان مدار
-  متصل باشد. وجود یک Ground جدا در گوشهٔ Canvas مرجع مدار محسوب نمی‌شود.
-- سیم‌کشی: `WIRE` را بزنید، نشانگر را نزدیک Pin ببرید تا سبز شود، روی Pin اول
-  کلیک کنید (نارنجی می‌شود) و سپس روی Pin سبز دوم کلیک کنید. پیش‌نمایش سیم روی
-  Pin دوم Snap می‌شود. برای خروج از حالت سیم‌کشی `SELECT` یا `Esc` را بزنید.
-- انتخاب Wire: روی سیم کلیک کنید و `Delete` بزنید.
-- Junction: نشانگر موس را روی تقاطع دو سیم ببرید و `J` بزنید.
-- اسیلوسکوپ: در حالت `SELECT` یک Wire را انتخاب و `SCOPE` را بزنید تا به `CH1`
-  وصل شود. برای کانال دوم Wire دیگری را انتخاب و دوباره `SCOPE` را بزنید. سپس
-  `RUN` را بزنید تا نمونه‌ها و Waveform نمایش داده شوند. `SCOPE` بدون انتخاب Wire
-  پنجره را باز/بسته می‌کند؛ `STOP` تاریخچهٔ نمونه‌ها را پاک می‌کند.
-- اجرای بخش ۸: `RUN` زمان را پیوسته جلو می‌برد، `PAUSE` وضعیت فعلی را نگه
-  می‌دارد، `STEP` در حالت مکث دقیقاً ۱ ms جلو می‌رود و مکث می‌ماند، و `STOP`
-  زمان/رویدادها را Reset کرده و ویرایش را دوباره فعال می‌کند.
-- تعامل زنده: هنگام Run یا Pause روی `SWITCH` کلیک کنید. روی `PUSH BUTTON`
-  کلیک را نگه دارید و برای Release رها کنید. نشانگر را روی `RESISTOR` یا
-  `DC SOURCE` ببرید و چرخ موس را بچرخانید تا مقدار زنده تغییر کند. در این حالت
-  ویرایش ساختاری مدار قفل است.
-- خطاهای اتصال: `Unconnected pin N on X` یعنی خود پین سیم ندارد؛
-  `Unreferenced electrical island` یعنی سیم‌کشی بسته است ولی مسیر مرجع آن به
-  GND وصل نشده؛ `FLOATING` هنگام Run فقط برای Net واقعاً حل‌نشده باقی می‌ماند.
-- `Ctrl+S`: ذخیره در `proteus_project.txt`.
-- `Ctrl+Z` / `Ctrl+Y`: Undo / Redo.
-- `R`، `H`، `V`: Rotate و Mirror قطعات انتخاب‌شده.
-- دکمه‌های `DRC`، `RUN`، `PAUSE`، `STOP` و `STEP`: کنترل بررسی و شبیه‌سازی.
-
-## وارد کردن و Build در CLion روی Windows
-
-### ۱. تنظیم Compiler
-
-در CLion به مسیر زیر بروید:
-
-`File > Settings > Build, Execution, Deployment > Toolchains`
-
-یک Toolchain از نوع **MinGW** بسازید و در `Toolset` گزینهٔ **Bundled MinGW**
-یا مسیر یک MinGW سالم را انتخاب کنید. صبر کنید تا CMake، C Compiler، C++ Compiler،
-Debugger و Build Tool همگی شناسایی شوند. اگر کنار `g++.exe` خطا می‌بینید، پروژه هنوز
-قابل Build نیست و باید همین Toolchain را اصلاح کنید.
-
-### ۲. نصب SDL2 و SDL2_gfx با vcpkg
-
-در PowerShell یا CMD:
-
-```powershell
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg.exe install sdl2:x64-mingw-static sdl2-gfx:x64-mingw-static
+```mermaid
+flowchart TB
+    subgraph UI["Presentation — SDL2"]
+        APP[ProteusApplication]
+        LIB[ComponentModel / Library]
+    end
+    subgraph INT["Integration"]
+        ADP[BackendAdapter]
+    end
+    subgraph CORE["Domain / Backend"]
+        SIM[SimulationController + AnalogSolver]
+        CIR[Circuit / Component / Pin / Net]
+        CMP[25 Component Types]
+        MEA[Measurement]
+        FIL[FileManager / History / Factory]
+        DRC[DRC]
+    end
+    APP --> ADP
+    LIB --> ADP
+    ADP --> SIM
+    ADP --> CIR
+    ADP --> FIL
+    ADP --> DRC
+    SIM --> CIR
+    CMP --> CIR
+    MEA --> CIR
 ```
 
-اگر از Toolchain نوع Visual Studio/MSVC استفاده می‌کنید، به‌جای Triplet بالا از
-`x64-windows` استفاده کنید. Compiler و Triplet باید با هم سازگار باشند.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
-### ۳. باز کردن پروژه
+---
 
-ZIP را Extract کنید. در CLion گزینهٔ `File > Open` را بزنید و دقیقاً پوشه‌ای را
-انتخاب کنید که فایل `CMakeLists.txt` در ریشهٔ آن قرار دارد:
+## 📁 Repository Layout
 
-```text
+```
 oop_project_proteus/
 ├── CMakeLists.txt
 ├── README.md
+├── docs/                      # All documentation
+│   ├── ARCHITECTURE.md        # Design, layers, decisions
+│   ├── TEAM_AND_PROCESS.md    # Division of labor & workflow
+│   ├── integration_guide.md   # UI↔Backend contract (FA)
+│   ├── COMPONENT_SIMULATION_AUDIT_FA.md
+│   ├── GIT_MERGE_GUIDE_FA.md
+│   ├── PART7_NOTES.md
+│   └── FRONTEND_TEST_CHECKLIST.md
+├── scripts/                   # Sync helpers
 ├── src/
+│   ├── main.cpp               # Single entry point
+│   ├── core/                  # Vector2D, Pin, Component, Circuit
+│   ├── wiring/                # Wire, Junction, Net
+│   ├── components/            # sources / passive / interactive / digital / advanced
+│   ├── measurement/           # Probe, Voltmeter, Ammeter, Oscilloscope
+│   ├── simulation/            # SimulationController, AnalogSolver
+│   ├── file/                  # FileManager, History, ComponentFactory
+│   ├── drc/                   # DRC, LogBuffer
+│   ├── integration/           # BackendAdapter
+│   └── ui/                    # ProteusApplication, ComponentModel
 └── tests/
+    ├── test_main.cpp          # 105 backend checks
+    └── test_integration.cpp   # 50 integration checks
 ```
 
-پوشهٔ `src` یا خود فایل `main.cpp` را جداگانه باز نکنید.
+---
 
-### ۴. معرفی vcpkg به CMake
+## 🚀 Getting Started
 
-به مسیر زیر بروید:
-
-`File > Settings > Build, Execution, Deployment > CMake`
-
-در Profile مربوط به Debug، Toolchain مرحلهٔ ۱ را انتخاب و در **CMake options** بنویسید:
-
-```text
--DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-mingw-static
-```
-
-سپس `Reload CMake Project` را اجرا کنید. اگر مسیر vcpkg شما متفاوت است، همان مسیر
-واقعی را جایگزین کنید.
-
-### ۵. Build و Run
-
-از لیست Run Configuration بالای CLion، Target زیر را انتخاب کنید:
-
-```text
-ProteusOopSimulator
-```
-
-سپس `Build > Build Project` و بعد Run را بزنید. برای تست‌ها نیز Targetهای زیر در
-همان لیست موجودند:
-
-```text
-run_tests
-run_integration_tests
-```
-
-## Build از Terminal
-
-برای MinGW و vcpkg:
-
-```powershell
-cmake -S . -B build -G Ninja `
-  -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
-  -DVCPKG_TARGET_TRIPLET=x64-mingw-static
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-اگر فقط Backend را می‌خواهید و SDL نصب نیست:
-
-```powershell
-cmake -S . -B build-backend -DPROTEUS_BUILD_GUI=OFF
-cmake --build build-backend
-ctest --test-dir build-backend --output-on-failure
-```
-
-## همگام‌سازی با یک Repository قدیمی
-
-این اسکریپت‌ها فقط فایل‌های جدید و تغییرکرده را روی Clone موجود کپی می‌کنند؛
-فایل‌های اضافی مقصد را حذف نمی‌کنند و به پوشهٔ `.git` دست نمی‌زنند.
-
-در Windows PowerShell ابتدا پیش‌نمایش بگیرید:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\sync_to_repo.ps1 `
-  -Source "C:\path\to\ProteusOopIntegrated" `
-  -Destination "C:\path\to\cloned-old-repository" `
-  -Preview
-```
-
-اگر فهرست درست بود، همان فرمان را بدون `-Preview` اجرا کنید. در Git Bash، WSL،
-Linux یا macOS نیز می‌توانید از `rsync` استفاده کنید:
+**Prerequisites:** CMake ≥ 3.16, a C++17 compiler, SDL2 + SDL2_gfx.
 
 ```bash
-bash scripts/sync_to_repo.sh \
-  "/path/to/ProteusOopIntegrated" \
-  "/path/to/cloned-old-repository"
+# macOS
+brew install sdl2 sdl2_gfx sdl2_image sdl2_ttf
+
+# Build
+cmake -S . -B build
+cmake --build build -j 8
+
+# Run the simulator
+./build/ProteusOopSimulator
 ```
 
-سپس داخل Repository مقصد تغییرات را بررسی، Build و Commit کنید:
+---
+
+## 🧪 Running the Tests
 
 ```bash
-git status
-git diff
-cmake -S . -B build-backend -DPROTEUS_BUILD_GUI=OFF
-cmake --build build-backend
-ctest --test-dir build-backend --output-on-failure
-git add CMakeLists.txt README.md scripts src tests .gitignore
-git commit -m "Integrate frontend with backend and add wiring scope UI"
-git push origin HEAD
+./build/run_tests             # 105 backend checks
+./build/run_integration_tests # 50 integration checks
 ```
 
-اگر لازم است فایل‌های حذف‌شده از نسخهٔ جدید در مقصد هم حذف شوند، این کار را خودکار
-نکرده‌ایم؛ آن‌ها را فقط بعد از بررسی `git status` با `git rm` حذف کنید تا حذف ناخواسته
-رخ ندهد.
+Both suites must finish with **0 failures**.
 
-راهنمای رسمی مرتبط:
+---
 
-- [باز کردن پروژهٔ CMake در CLion](https://www.jetbrains.com/help/clion/clion-quick-start-guide.html)
-- [تنظیم MinGW در CLion](https://www.jetbrains.com/help/clion/quick-tutorial-on-configuring-clion-on-windows.html)
-- [اتصال vcpkg به CMake](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration)
+## 📚 Documentation
+
+| Document | Purpose |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Essence, layers, domain model, design decisions |
+| [`docs/TEAM_AND_PROCESS.md`](docs/TEAM_AND_PROCESS.md) | Division of labor, git workflow, milestones |
+| [`docs/integration_guide.md`](docs/integration_guide.md) | How to connect UI to the backend (FA) |
+| [`docs/COMPONENT_SIMULATION_AUDIT_FA.md`](docs/COMPONENT_SIMULATION_AUDIT_FA.md) | Simulation engine audit & component models (FA) |
+| [`docs/GIT_MERGE_GUIDE_FA.md`](docs/GIT_MERGE_GUIDE_FA.md) | Conflict-free teamwork guide (FA) |
+| [`docs/PART7_NOTES.md`](docs/PART7_NOTES.md) | Advanced library (MCU/ADC/DAC/LCD/Keypad) |
+| [`docs/FRONTEND_TEST_CHECKLIST.md`](docs/FRONTEND_TEST_CHECKLIST.md) | Manual UI test checklist |
+
+---
+
+## 👥 Team & Division of Labor
+
+| Member | Sections | Focus |
+|---|---|---|
+| **Mohsen** | 5, 6, 9, 10, 11 | Wiring, base components, measurement, file mgmt, DRC (backend lead) |
+| **Melika** | 1, 2, 7 | Menus, design canvas, advanced component library |
+| **Hana** | 3, 4, 8 | Component library UI, editing, simulation control |
+
+Strategy: **backend-first with high testability** — every domain feature ships with automated tests before UI integration.
+
+---
+
+## 📈 Project Status
+
+- ✅ Backend core (wiring, components, measurement, file, DRC)
+- ✅ Advanced library (MCU, ADC/DAC, LCD, Keypad, Memory)
+- ✅ SDL2 frontend + full integration
+- ✅ Mixed-signal analog solver (MNA)
+- ✅ 155 automated tests, all green
+- 🏷️ Tagged release: `v1.0-final`
