@@ -28,7 +28,10 @@
 #include "../src/components/sources/battery.h"
 #include "../src/components/sources/clock_gen.h"
 #include "../src/components/interactive/switch_comp.h"
+#include "../src/components/interactive/push_button.h"
 #include "../src/components/interactive/led.h"
+#include "../src/components/interactive/seven_segment.h"
+#include "../src/simulation/analog_solver.h"
 
 
 using namespace std;
@@ -48,6 +51,20 @@ static void check(bool cond, const string& name) {
 
 static bool near(double a, double b) {
     return fabs(a - b) < 0.0001;
+}
+
+static void solveCircuit(Circuit& circuit, double dt = 0.001,
+                         double simTime = 0.001) {
+    for (int pass = 0; pass < 4; ++pass) {
+        for (Component* component : circuit.components) {
+            if (!AnalogSolver::ownsComponentStep(*component))
+                component->step(pass == 0 ? dt : 0.0, simTime);
+        }
+        circuit.propagateVoltages();
+        AnalogSolver::solve(circuit, pass == 0 ? dt : 0.0,
+                            pass == 0 && dt > 0.0);
+        circuit.propagateVoltages();
+    }
 }
 
 static void testWireRouting() {
@@ -126,6 +143,44 @@ static void testGates() {
     check(near(and1.pins[2].voltage, 5), "AND outputs HIGH when both HIGH");
 }
 
+static void testRemainingDigitalComponents() {
+    XorGate xorGate("X1", 0, 0, 2);
+    xorGate.propagationDelay = 0.0;
+    xorGate.pins[0].connected = true;
+    xorGate.pins[1].connected = true;
+    xorGate.pins[0].voltage = 5.0;
+    xorGate.pins[1].voltage = 0.0;
+    xorGate.step(0.0, 0.0);
+    check(near(xorGate.pins[2].voltage, 5.0),
+          "XOR outputs HIGH for different inputs");
+
+    NandGate nandGate("Q1", 0, 0, 2);
+    nandGate.propagationDelay = 0.0;
+    nandGate.pins[0].connected = true;
+    nandGate.pins[1].connected = true;
+    nandGate.pins[0].voltage = 5.0;
+    nandGate.pins[1].voltage = 5.0;
+    nandGate.step(0.0, 0.0);
+    check(near(nandGate.pins[2].voltage, 0.0),
+          "NAND outputs LOW only when every input is HIGH");
+
+    PushButton button("PB1", 0, 0);
+    button.press();
+    button.step(0.0, 0.0);
+    const bool pressedHigh = near(button.pins[0].voltage, 5.0);
+    button.release();
+    button.step(0.0, 0.0);
+    check(pressedHigh && near(button.pins[0].voltage, 0.0),
+          "push button drives HIGH while pressed and LOW when released");
+
+    SevenSegment display("SEG1", 0, 0);
+    display.pins[0].voltage = 5.0;
+    display.pins[1].voltage = 0.0;
+    display.step(0.0, 0.0);
+    check(display.segOn[0] && !display.segOn[1],
+          "seven-segment display follows each segment input independently");
+}
+
 static void testFlipFlop() {
     DFlipFlop ff("F1", 0, 0);
     ff.pins[0].connected = true;
@@ -144,7 +199,13 @@ static void testPinDirectionCompatibility() {
     check(inputLike.pins[0].needsInputConnection(), "default pin remains an input");
 
     DCSource source("V1", 0, 0, 5);
-    check(source.pins[0].drivesNet(), "legacy isOutput pins still drive nets");
+    check(source.pins[0].needsInputConnection() &&
+          source.pins[1].needsInputConnection(),
+          "two-terminal source requires both terminals to be wired");
+
+    Ground legacyOutput("G1", 0, 0);
+    check(legacyOutput.pins[0].drivesNet(),
+          "legacy isOutput pins still drive nets");
 
     Pin bidirectional(0, 0, &inputLike);
     bidirectional.setDirection(PinDirection::Bidirectional);
@@ -536,12 +597,38 @@ static void testDRC() {
 
     Circuit shorted;
     shorted.addComponent(new Ground("G1", 0, 0));
-    shorted.addComponent(new DCSource("V1", 40, 0, 5));
+    auto* high = new PushButton("PB1", 40, 0);
+    high->press();
+    high->step(0.0, 0.0);
+    shorted.addComponent(high);
     shorted.addWire(&shorted.components[0]->pins[0], &shorted.components[1]->pins[0]);
     shorted.components[0]->pins[0].voltage = 0;
     shorted.components[1]->pins[0].voltage = 5;
     DRC d2;
     check(!d2.checkShorts(shorted), "short circuit detected");
+
+    Circuit unreferenced;
+    unreferenced.addComponent(new Ground("G1", 0, 80));
+    unreferenced.addComponent(new DCSource("V1", 0, 0, 5));
+    unreferenced.addComponent(new Resistor("R1", 60, 0, 1000));
+    unreferenced.addWire(&unreferenced.components[1]->pins[0],
+                         &unreferenced.components[2]->pins[0]);
+    unreferenced.addWire(&unreferenced.components[1]->pins[1],
+                         &unreferenced.components[2]->pins[1]);
+    DRC d3;
+    check(!d3.checkReferences(unreferenced),
+          "electrical island disconnected from ground is detected");
+
+    Circuit sourceShort;
+    sourceShort.addComponent(new Ground("G1", 0, 0));
+    sourceShort.addComponent(new DCSource("V1", 40, 0, 5));
+    sourceShort.addWire(&sourceShort.components[0]->pins[0],
+                        &sourceShort.components[1]->pins[0]);
+    sourceShort.addWire(&sourceShort.components[0]->pins[0],
+                        &sourceShort.components[1]->pins[1]);
+    DRC d4;
+    check(!d4.checkShorts(sourceShort),
+          "shorted two-terminal voltage source is detected");
 }
 
 static void testStateSerialization() {
@@ -605,17 +692,15 @@ static void testVoltageProbe() {
     c.addComponent(g);
     c.addComponent(v);
     c.addComponent(r);
-    c.addWire(&g->pins[0], &v->pins[1]);
-    c.addWire(&v->pins[0], &r->pins[0]);
-
-    g->step(0.01, 0);
-    v->step(0.01, 0);
-    c.propagateVoltages();
+    c.addWire(&g->pins[0], &v->pins[0]);
+    c.addWire(&v->pins[1], &r->pins[0]);
+    c.addWire(&r->pins[1], &g->pins[0]);
+    solveCircuit(c);
 
     VoltageProbe probe;
-    check(near(probe.read(c, v->pins[0].worldPos()), 5), "probe reads source HIGH voltage");
+    check(near(probe.read(c, v->pins[1].worldPos()), 5), "probe reads source HIGH voltage");
     check(near(probe.read(c, g->pins[0].worldPos()), 0), "probe reads ground voltage");
-    check(!probe.isFloating(c, v->pins[0].worldPos()), "probe detects connected net");
+    check(!probe.isFloating(c, v->pins[1].worldPos()), "probe detects connected net");
     check(probe.isFloating(c, Vector2D(1000, 1000)), "probe detects floating at empty position");
 }
 
@@ -636,12 +721,10 @@ static void testVoltmeter() {
     c.addComponent(g);
     c.addComponent(v);
     c.addComponent(vm2);
-    c.addWire(&vm2->pins[0], &v->pins[0]);
+    c.addWire(&v->pins[0], &g->pins[0]);
+    c.addWire(&vm2->pins[0], &v->pins[1]);
     c.addWire(&vm2->pins[1], &g->pins[0]);
-    g->step(0.01, 0);
-    v->step(0.01, 0);
-    c.propagateVoltages();
-    vm2->step(0.01, 0);
+    solveCircuit(c);
     check(!vm2->hasError, "voltmeter ok with ground and connected pins");
     check(near(vm2->reading, 5), "voltmeter reads correct voltage difference");
 }
@@ -657,17 +740,12 @@ static void testAmmeter() {
     c.addComponent(am);
     c.addComponent(r);
 
-    c.addWire(&v->pins[1], &g->pins[0]);
-    c.addWire(&v->pins[0], &am->pins[0]);
+    c.addWire(&v->pins[0], &g->pins[0]);
+    c.addWire(&v->pins[1], &am->pins[0]);
     c.addWire(&am->pins[1], &r->pins[0]);
     c.addWire(&r->pins[1], &g->pins[0]);
 
-    g->step(0.01, 0);
-    v->step(0.01, 0);
-    c.propagateVoltages();
-    r->step(0.01, 0);
-    c.propagateVoltages();
-    am->step(0.01, 0);
+    solveCircuit(c);
 
     check(am->reading > 0, "ammeter reads positive current through series resistor");
 }
@@ -678,15 +756,16 @@ static void testOscilloscope() {
     DCSource* v = new DCSource("V1", 40, 0, 5);
     c.addComponent(g);
     c.addComponent(v);
-    c.addWire(&g->pins[0], &v->pins[1]);
-
-    g->step(0.01, 0);
-    v->step(0.01, 0);
-    c.propagateVoltages();
+    Resistor* r = new Resistor("R1", 80, 0, 1000);
+    c.addComponent(r);
+    c.addWire(&g->pins[0], &v->pins[0]);
+    c.addWire(&v->pins[1], &r->pins[0]);
+    c.addWire(&r->pins[1], &g->pins[0]);
+    solveCircuit(c);
 
     int highNetId = -1;
     for (Net* n : c.nets) {
-        if (n->hasPin(&v->pins[0]))
+        if (n->hasPin(&v->pins[1]))
             highNetId = n->id;
     }
 
@@ -718,10 +797,10 @@ static void testBattery() {
     bat->internalResistance = 1.0;
     c.addComponent(bat);
 
-    bat->pins[1].voltage = 0;
-    bat->pins[1].connected = true;
+    bat->pins[0].voltage = 0;
+    bat->pins[0].connected = true;
     bat->step(0.01, 0);
-    check(near(bat->pins[0].voltage, 9), "battery outputs rated voltage without load");
+    check(near(bat->pins[1].voltage, 9), "battery outputs rated voltage without load");
 }
 
 static void testClockGenerator() {
@@ -749,24 +828,18 @@ static void testSwitch() {
     c.addComponent(r);
     c.addComponent(g);
 
-    c.addWire(&v->pins[0], &sw->pins[0]);
+    c.addWire(&v->pins[1], &sw->pins[0]);
     c.addWire(&sw->pins[1], &r->pins[0]);
     c.addWire(&r->pins[1], &g->pins[0]);
-    c.addWire(&v->pins[1], &g->pins[0]);
-
-    v->step(0.01, 0);
-    g->step(0.01, 0);
-    c.propagateVoltages();
-    sw->step(0.01, 0);
-    c.propagateVoltages();
+    c.addWire(&v->pins[0], &g->pins[0]);
+    solveCircuit(c);
 
     check(!sw->pins[1].drivesNet(), "open switch isolates output from input");
 
     sw->toggle();
     check(sw->closed, "toggle changes switch state to closed");
 
-    sw->step(0.01, 0.01);
-    c.propagateVoltages();
+    solveCircuit(c, 0.001, 0.01);
 
     check(near(sw->pins[1].voltage, 5), "closed switch propagates voltage to output");
 }
@@ -797,6 +870,7 @@ int main() {
     testSerialize();
     testUndoRedo();
     testGates();
+    testRemainingDigitalComponents();
     testGateUndefined();
     testFlipFlop();
     testPinDirectionCompatibility();

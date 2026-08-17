@@ -7,7 +7,9 @@ ClockGenerator::ClockGenerator(string name, double x, double y, double period) :
     addPin(10, 0);   // OUT
     addPin(-10, 0);  // GND reference
     pins[0].setDirection(PinDirection::Output);
-    pins[1].setDirection(PinDirection::Output);
+    pins[1].setDirection(PinDirection::Input);
+    pins[0].voltage = highVoltage;
+    pins[1].voltage = 0.0;
 }
 
 void ClockGenerator::step(double dt, double simTime) {

@@ -1,4 +1,5 @@
 #include "circuit.h"
+#include <cmath>
 #include <unordered_map>
 #include "../components/digital/logic_level.h"
 
@@ -277,16 +278,22 @@ void Circuit::propagateVoltages() {
             if (!has) {
                 v = p->voltage;
                 has = true;
-            } else if (voltageToLogic(p->voltage) != voltageToLogic(v)) {
+            } else if (!std::isfinite(p->voltage) ||
+                       !std::isfinite(v) ||
+                       std::fabs(p->voltage - v) > 1.0e-6) {
                 conflict = true;
             }
         }
-        if (conflict)
+        n->driverConflict = conflict;
+        if (conflict) {
             n->voltage = UNDEFINED_VOLT;
-        else if (has)
+            n->voltageResolved = true;
+        } else if (has) {
             n->voltage = v;
-        else
+            n->voltageResolved = std::isfinite(v);
+        } else if (!n->voltageResolved) {
             n->voltage = UNDEFINED_VOLT;
+        }
         for (Pin* p : n->pins)
             p->voltage = n->voltage;
     }

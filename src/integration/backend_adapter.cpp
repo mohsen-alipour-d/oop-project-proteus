@@ -21,6 +21,7 @@
 #include "../components/sources/ground.h"
 #include "../measurement/ammeter.h"
 #include "../measurement/voltmeter.h"
+#include "../simulation/analog_solver.h"
 
 #include <algorithm>
 #include <cctype>
@@ -335,14 +336,15 @@ std::vector<WireView> BackendAdapter::wireViews() const
         {
             Net* net = circuit.nets[wire->netId];
             view.voltage = net->voltage;
-            const bool hasDriver = std::any_of(net->pins.begin(), net->pins.end(),
-                                               [](const Pin* pin)
-                                               {
-                                                   return pin->drivesNet();
-                                               });
-            view.driven = hasDriver;
-            if (!hasDriver)
+            view.voltageResolved = net->voltageResolved;
+            if (!net->voltageResolved)
             {
+                result.push_back(view);
+                continue;
+            }
+            if (net->driverConflict)
+            {
+                view.state = WireLogicState::Undefined;
                 result.push_back(view);
                 continue;
             }
@@ -720,7 +722,39 @@ std::string BackendAdapter::runtimeComponentValue(int componentId) const
     {
         return {};
     }
-    return displayValueFor(*component, definitionIdFor(*component));
+    const int definitionId = definitionIdFor(*component);
+    switch (definitionId)
+    {
+        case 6:
+        {
+            const LED& led = static_cast<const LED&>(*component);
+            return toUpperAscii(led.color) + (led.lit ? " ON" : " OFF");
+        }
+        case 11:
+        {
+            const SevenSegment& display = static_cast<const SevenSegment&>(*component);
+            int activeSegments = 0;
+            for (bool segment : display.segOn)
+                activeSegments += segment ? 1 : 0;
+            return "SEG ON:" + std::to_string(activeSegments);
+        }
+        case 17:
+            return "CODE " + std::to_string(
+                    static_cast<const ADC&>(*component).getOutputCode());
+        case 18:
+            return compactNumber(
+                    static_cast<const DAC&>(*component).getOutputVoltage()) + "V";
+        case 23:
+        {
+            const Voltmeter& meter = static_cast<const Voltmeter&>(*component);
+            return meter.hasError ? "ERR" : compactNumber(meter.reading) + "V";
+        }
+        case 24:
+            return compactNumber(
+                    static_cast<const Ammeter&>(*component).reading) + "A";
+        default:
+            return displayValueFor(*component, definitionId);
+    }
 }
 
 void BackendAdapter::prepareSimulationSession()
@@ -740,9 +774,16 @@ void BackendAdapter::evaluateCircuit(double dt)
     {
         for (Component* component : circuit.components)
         {
-            component->step(pass == 0 ? dt : 0.0,
-                            simulationController.timeSeconds());
+            if (!AnalogSolver::ownsComponentStep(*component))
+            {
+                component->step(pass == 0 ? dt : 0.0,
+                                simulationController.timeSeconds());
+            }
         }
+        circuit.propagateVoltages();
+        AnalogSolver::solve(circuit,
+                            pass == 0 ? dt : 0.0,
+                            pass == 0 && dt > 0.0);
         circuit.propagateVoltages();
     }
     oscilloscope.update(circuit, simulationController.timeSeconds());
@@ -792,8 +833,12 @@ Component* BackendAdapter::createBackendComponent(int definitionId,
     const double y = position.y;
     switch (definitionId)
     {
-        case 0: return new Resistor(label, x, y, resistanceValue(value, 1000.0));
-        case 1: return new Capacitor(label, x, y, reactiveValue(value, 100.0e-9));
+        case 0: return new Resistor(label, x, y,
+                                    std::max(resistanceValue(value, 1000.0),
+                                             1.0e-9));
+        case 1: return new Capacitor(label, x, y,
+                                     std::max(reactiveValue(value, 100.0e-9),
+                                              1.0e-15));
         case 2: return new Battery(label, x, y, leadingNumber(value, 9.0));
         case 3:
         {
@@ -809,7 +854,9 @@ Component* BackendAdapter::createBackendComponent(int definitionId,
         case 5: return new AndGate(label, x, y, 2);
         case 6: return new LED(label, x, y, lowerAscii(trimAscii(value)));
         case 7: return new Ground(label, x, y);
-        case 8: return new Inductor(label, x, y, reactiveValue(value, 1.0e-3));
+        case 8: return new Inductor(label, x, y,
+                                    std::max(reactiveValue(value, 1.0e-3),
+                                             1.0e-15));
         case 9: return new DCSource(label, x, y, leadingNumber(value, 5.0));
         case 10:
         {
@@ -927,10 +974,12 @@ void BackendAdapter::applyEditableValue(Component& component,
     switch (definitionId)
     {
         case 0:
-            static_cast<Resistor&>(component).value = resistanceValue(value, 1000.0);
+            static_cast<Resistor&>(component).value = std::max(
+                    resistanceValue(value, 1000.0), 1.0e-9);
             break;
         case 1:
-            static_cast<Capacitor&>(component).value = reactiveValue(value, 100.0e-9);
+            static_cast<Capacitor&>(component).value = std::max(
+                    reactiveValue(value, 100.0e-9), 1.0e-15);
             break;
         case 2:
             static_cast<Battery&>(component).value = leadingNumber(value, 9.0);
@@ -949,7 +998,8 @@ void BackendAdapter::applyEditableValue(Component& component,
             static_cast<LED&>(component).color = lowerAscii(trimAscii(value));
             break;
         case 8:
-            static_cast<Inductor&>(component).value = reactiveValue(value, 1.0e-3);
+            static_cast<Inductor&>(component).value = std::max(
+                    reactiveValue(value, 1.0e-3), 1.0e-15);
             break;
         case 9:
             static_cast<DCSource&>(component).value = leadingNumber(value, 5.0);

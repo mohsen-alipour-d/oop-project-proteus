@@ -17,6 +17,7 @@ set(PROTEUS_BACKEND_SOURCES
         src/wiring/junction.cpp
         src/wiring/net.cpp
         src/simulation/simulation_controller.cpp
+        src/simulation/analog_solver.cpp
         src/components/sources/ground.cpp
         src/components/sources/dc_source.cpp
         src/components/sources/battery.cpp

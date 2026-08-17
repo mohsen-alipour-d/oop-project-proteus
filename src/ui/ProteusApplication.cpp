@@ -336,6 +336,7 @@ void ProteusApplication::updateSimulation()
     {
         backend.updateSimulation(dt);
         wireAnimationPhase += dt;
+        refreshRuntimeComponentValues();
     }
 }
 
@@ -530,7 +531,7 @@ void ProteusApplication::handleMouseButtonUp(const SDL_MouseButtonEvent& event,
     if (event.button == SDL_BUTTON_LEFT && activePushButtonId >= 0)
     {
         backend.setPushButtonPressed(activePushButtonId, false);
-        updateRuntimeComponentValue(activePushButtonId);
+        refreshRuntimeComponentValues();
         activePushButtonId = -1;
         statusMessage = "PUSH BUTTON RELEASED";
     }
@@ -559,7 +560,7 @@ void ProteusApplication::handleMouseWheel(const SDL_MouseWheelEvent& event)
             if (componentId >= 0 &&
                 backend.adjustInteractiveValue(componentId, direction))
             {
-                updateRuntimeComponentValue(componentId);
+                refreshRuntimeComponentValues();
                 statusMessage = "LIVE VALUE CHANGED";
                 return;
             }
@@ -894,14 +895,14 @@ void ProteusApplication::handleWorkspaceLeftClick(int mouseX,
             if (component != nullptr && component->definitionId() == 4 &&
                 backend.toggleSwitch(componentId))
             {
-                updateRuntimeComponentValue(componentId);
+                refreshRuntimeComponentValues();
                 statusMessage = "SWITCH TOGGLED LIVE";
             }
             else if (component != nullptr && component->definitionId() == 10 &&
                      backend.setPushButtonPressed(componentId, true))
             {
                 activePushButtonId = componentId;
-                updateRuntimeComponentValue(componentId);
+                refreshRuntimeComponentValues();
                 statusMessage = "PUSH BUTTON PRESSED";
             }
             else
@@ -1855,11 +1856,32 @@ void ProteusApplication::redoProject()
 void ProteusApplication::runDesignRuleCheck()
 {
     const bool valid = backend.validate();
-    statusMessage = valid ? "DRC PASSED" : "DRC FAILED - SEE CONSOLE";
+    if (!valid)
+    {
+        reportValidationFailure("DRC");
+        return;
+    }
+    statusMessage = "DRC PASSED";
     for (const LogMessage& message : backend.validationMessages())
     {
         std::cout << (message.isError ? "[DRC ERROR] " : "[DRC] ")
                   << message.text << '\n';
+    }
+}
+
+void ProteusApplication::reportValidationFailure(const std::string& prefix)
+{
+    statusMessage = prefix + " FAILED";
+    bool firstError = true;
+    for (const LogMessage& message : backend.validationMessages())
+    {
+        std::cout << (message.isError ? "[DRC ERROR] " : "[DRC] ")
+                  << message.text << '\n';
+        if (message.isError && firstError)
+        {
+            statusMessage = prefix + ": " + message.text;
+            firstError = false;
+        }
     }
 }
 
@@ -1874,12 +1896,7 @@ void ProteusApplication::startSimulation()
     if (backend.simulationState() == SimulationState::Stopped &&
         !backend.validate())
     {
-        statusMessage = "RUN BLOCKED BY DRC";
-        for (const LogMessage& message : backend.validationMessages())
-        {
-            std::cout << (message.isError ? "[DRC ERROR] " : "[DRC] ")
-                      << message.text << '\n';
-        }
+        reportValidationFailure("RUN BLOCKED");
         return;
     }
 
@@ -1889,6 +1906,7 @@ void ProteusApplication::startSimulation()
     hoveredPin.reset();
     mouseOperation = MouseOperation::None;
     backend.startSimulation();
+    refreshRuntimeComponentValues();
     lastFrameTicks = SDL_GetTicks64();
     statusMessage = "SIMULATION RUNNING";
 }
@@ -1925,12 +1943,7 @@ void ProteusApplication::stepSimulation()
     if (backend.simulationState() == SimulationState::Stopped &&
         !backend.validate())
     {
-        statusMessage = "STEP BLOCKED BY DRC";
-        for (const LogMessage& message : backend.validationMessages())
-        {
-            std::cout << (message.isError ? "[DRC ERROR] " : "[DRC] ")
-                      << message.text << '\n';
-        }
+        reportValidationFailure("STEP BLOCKED");
         return;
     }
 
@@ -1945,6 +1958,7 @@ void ProteusApplication::stepSimulation()
     }
     if (backend.stepSimulation())
     {
+        refreshRuntimeComponentValues();
         wireAnimationPhase += backend.simulationStepSeconds();
         statusMessage = "STEP +1 MS - SIMULATION PAUSED";
     }
@@ -1955,12 +1969,11 @@ bool ProteusApplication::simulationActive() const
     return backend.simulationState() != SimulationState::Stopped;
 }
 
-void ProteusApplication::updateRuntimeComponentValue(int componentId)
+void ProteusApplication::refreshRuntimeComponentValues()
 {
-    ComponentInstance* component = componentById(componentId);
-    if (component != nullptr)
+    for (ComponentInstance& component : components)
     {
-        component->setValue(backend.runtimeComponentValue(componentId));
+        component.setValue(backend.runtimeComponentValue(component.id()));
     }
 }
 
@@ -2901,7 +2914,7 @@ void ProteusApplication::renderWires()
                           3,
                           color.r, color.g, color.b, color.a);
 
-            if (runningSimulation && wire.driven)
+            if (runningSimulation && wire.voltageResolved)
             {
                 const double deltaX = static_cast<double>(second.x - first.x);
                 const double deltaY = static_cast<double>(second.y - first.y);

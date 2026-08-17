@@ -305,6 +305,7 @@ private:
     void undoProject();
     void redoProject();
     void runDesignRuleCheck();
+    void reportValidationFailure(const std::string& prefix);
     void startSimulation();
     void pauseSimulation();
     void stopSimulation();
@@ -312,7 +313,7 @@ private:
     void toggleOscilloscope();
     void recordProjectChange();
     bool simulationActive() const;
-    void updateRuntimeComponentValue(int componentId);
+    void refreshRuntimeComponentValues();
 
     void openPropertiesDialog(int componentId);
     void closePropertiesDialog(bool saveChanges);

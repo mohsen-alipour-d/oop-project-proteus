@@ -15,7 +15,7 @@
 | `src/integration` | تبدیل رویدادهای UI به عملیات Backend و همگام‌سازی دو لایه |
 | `src/core` | `Component`، `Pin` و `Circuit` |
 | `src/wiring` | Wire، Junction و Net — بخش‌های سیم‌کشی |
-| `src/simulation` | ماشین حالت و ساعت داخلی Run/Pause/Stop/Step — بخش ۸ |
+| `src/simulation` | کنترل Run/Pause/Stop/Step و حل‌کنندهٔ Mixed-Signal آنالوگ/دیجیتال |
 | `src/components` | قطعات آنالوگ، دیجیتال، تعاملی و پیشرفته |
 | `src/mcu` | MCU، حافظه، رجیستر، Firmware loader و Decoder — بخش ۷ |
 | `src/measurement` | Voltmeter، Ammeter، Probe و Oscilloscope |
@@ -47,6 +47,13 @@
 - تعامل زنده با Switch (کلیک)، Push Button (نگه‌داشتن کلیک) و تغییر مقدار
   Resistor/DC Source با چرخ موس در زمان Run یا Pause
 - Stop زمان را صفر، رویدادهای معوق را پاک و مدار را به Snapshot قبل از اجرا برمی‌گرداند
+- حل Mixed-Signal برای R/C/L، LED، منابع دوترمیناله، Switch، ADC/DAC و ابزارهای
+  اندازه‌گیری؛ Netهای Passive بسته دیگر به‌اشتباه `FLOATING` گزارش نمی‌شوند
+- رفتار تمام ۲۵ تعریف کتابخانه با تست‌های قطعه‌ای یا مدار یکپارچه پوشش داده شده است
+
+شرح فنی مدل هر کامپوننت و تست‌های آن در
+[`docs/COMPONENT_SIMULATION_AUDIT_FA.md`](docs/COMPONENT_SIMULATION_AUDIT_FA.md)
+قرار دارد.
 
 ## وضعیت بخش ۸ نسبت به نسخهٔ قبلی
 
@@ -65,6 +72,9 @@
 ## کنترل‌های مهم
 
 - قرار دادن قطعه: قطعه را از **Active Components** انتخاب و روی Canvas کلیک کنید.
+- مرجع منابع: در `BATTERY` و `DC SOURCE` پین `-` را به GND/مسیر برگشت و پین
+  `+` را به بار وصل کنید. در `CLOCK` نیز پین `GND` باید به Ground همان مدار
+  متصل باشد. وجود یک Ground جدا در گوشهٔ Canvas مرجع مدار محسوب نمی‌شود.
 - سیم‌کشی: `WIRE` را بزنید، نشانگر را نزدیک Pin ببرید تا سبز شود، روی Pin اول
   کلیک کنید (نارنجی می‌شود) و سپس روی Pin سبز دوم کلیک کنید. پیش‌نمایش سیم روی
   Pin دوم Snap می‌شود. برای خروج از حالت سیم‌کشی `SELECT` یا `Esc` را بزنید.
@@ -81,6 +91,9 @@
   کلیک را نگه دارید و برای Release رها کنید. نشانگر را روی `RESISTOR` یا
   `DC SOURCE` ببرید و چرخ موس را بچرخانید تا مقدار زنده تغییر کند. در این حالت
   ویرایش ساختاری مدار قفل است.
+- خطاهای اتصال: `Unconnected pin N on X` یعنی خود پین سیم ندارد؛
+  `Unreferenced electrical island` یعنی سیم‌کشی بسته است ولی مسیر مرجع آن به
+  GND وصل نشده؛ `FLOATING` هنگام Run فقط برای Net واقعاً حل‌نشده باقی می‌ماند.
 - `Ctrl+S`: ذخیره در `proteus_project.txt`.
 - `Ctrl+Z` / `Ctrl+Y`: Undo / Redo.
 - `R`، `H`، `V`: Rotate و Mirror قطعات انتخاب‌شده.
@@ -118,7 +131,7 @@ ZIP را Extract کنید. در CLion گزینهٔ `File > Open` را بزنید
 انتخاب کنید که فایل `CMakeLists.txt` در ریشهٔ آن قرار دارد:
 
 ```text
-ProteusOopIntegrated/
+oop_project_proteus/
 ├── CMakeLists.txt
 ├── README.md
 ├── src/

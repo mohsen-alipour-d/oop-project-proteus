@@ -40,11 +40,13 @@ int main()
           "frontend definitions create backend components");
     check(backend.addComponent(0, "R1", "2K", {200.0, 0.0}) < 0,
           "duplicate labels are rejected");
-    check(backend.connectPins({source, 0}, {resistor, 0}),
-          "first wire is connected");
+    check(backend.connectPins({source, 0}, {ground, 0}),
+          "battery negative terminal is referenced to ground");
+    check(backend.connectPins({source, 1}, {resistor, 0}),
+          "battery positive terminal feeds the load");
     check(backend.connectPins({ground, 0}, {resistor, 1}),
-          "second wire is connected");
-    check(backend.wireViews().size() == 2,
+          "load return is connected");
+    check(backend.wireViews().size() == 3,
           "backend wires are visible to the frontend");
     check(backend.findPinAt({41.0, 0.0}, 1.0).has_value(),
           "pin hit testing supports automatic pin selection");
@@ -122,8 +124,198 @@ int main()
     check(loaded.load(projectPath), "saved project loads through FileManager");
     check(loaded.frontendComponents().size() == 3,
           "loaded backend rebuilds the frontend component list");
-    check(loaded.wireViews().size() == 2,
+    check(loaded.wireViews().size() == 3,
           "loaded project restores wires");
+
+    BackendAdapter analogLed;
+    const int ledGround = analogLed.addComponent(7, "GND1", "0V", {0.0, 80.0});
+    const int ledBattery = analogLed.addComponent(2, "BAT1", "9V", {0.0, 0.0});
+    const int led = analogLed.addComponent(6, "D1", "RED", {100.0, 0.0});
+    const int ledResistor = analogLed.addComponent(0, "R1", "1K", {200.0, 0.0});
+    check(analogLed.connectPins({ledBattery, 0}, {ledGround, 0}) &&
+          analogLed.connectPins({ledBattery, 1}, {led, 0}) &&
+          analogLed.connectPins({led, 1}, {ledResistor, 0}) &&
+          analogLed.connectPins({ledResistor, 1}, {ledGround, 0}) &&
+          analogLed.validate(),
+          "battery-LED-resistor circuit is complete and DRC-valid");
+    analogLed.startSimulation();
+    analogLed.updateSimulation(0.001);
+    bool ledCircuitResolved = true;
+    for (const WireView& wire : analogLed.wireViews())
+    {
+        ledCircuitResolved = wire.state != WireLogicState::Floating &&
+                             std::isfinite(wire.voltage) &&
+                             ledCircuitResolved;
+    }
+    check(ledCircuitResolved &&
+          analogLed.runtimeComponentValue(led).find(" ON") != std::string::npos,
+          "LED and every passive node are solved instead of reported floating");
+    analogLed.stopSimulation();
+
+    BackendAdapter analogRc;
+    const int rcGround = analogRc.addComponent(7, "GND1", "0V", {0.0, 80.0});
+    const int rcClock = analogRc.addComponent(3, "CLK1", "1HZ", {0.0, 0.0});
+    const int rcResistor = analogRc.addComponent(0, "R1", "1K", {100.0, 0.0});
+    const int rcCapacitor = analogRc.addComponent(1, "C1", "100N", {200.0, 0.0});
+    check(analogRc.connectPins({rcClock, 1}, {rcGround, 0}) &&
+          analogRc.connectPins({rcClock, 0}, {rcResistor, 0}) &&
+          analogRc.connectPins({rcResistor, 1}, {rcCapacitor, 0}) &&
+          analogRc.connectPins({rcCapacitor, 1}, {rcGround, 0}) &&
+          analogRc.validate(),
+          "clock-RC circuit is complete and DRC-valid");
+    const int rcMeasuredWireId = analogRc.wireViews()[2].id;
+    check(analogRc.attachOscilloscopeChannel(0, rcMeasuredWireId),
+          "oscilloscope attaches to a passive RC node");
+    analogRc.startSimulation();
+    const double rcInitialVoltage = analogRc.wireViews()[2].voltage;
+    analogRc.updateSimulation(0.001);
+    const std::vector<WireView> rcChargedWires = analogRc.wireViews();
+    bool rcResolved = rcChargedWires.size() == 4;
+    for (const WireView& wire : rcChargedWires)
+        rcResolved = wire.state != WireLogicState::Floating &&
+                     std::isfinite(wire.voltage) && rcResolved;
+    check(rcResolved && rcInitialVoltage < 0.1 &&
+          rcChargedWires[2].voltage > 2.0,
+          "capacitor follows a finite RC transient without false floating");
+    const std::vector<ScopeChannelView> rcScope = analogRc.oscilloscopeChannels();
+    check(!rcScope.empty() && !rcScope[0].history.empty() &&
+          std::isfinite(rcScope[0].history.back()),
+          "oscilloscope records the solved passive-node voltage");
+    analogRc.stopSimulation();
+
+    BackendAdapter analogRl;
+    const int rlGround = analogRl.addComponent(7, "GND1", "0V", {0.0, 80.0});
+    const int rlSource = analogRl.addComponent(9, "V1", "5V", {0.0, 0.0});
+    const int rlInductor = analogRl.addComponent(8, "L1", "10M", {100.0, 0.0});
+    const int rlResistor = analogRl.addComponent(0, "R1", "100", {200.0, 0.0});
+    check(analogRl.connectPins({rlSource, 0}, {rlGround, 0}) &&
+          analogRl.connectPins({rlSource, 1}, {rlInductor, 0}) &&
+          analogRl.connectPins({rlInductor, 1}, {rlResistor, 0}) &&
+          analogRl.connectPins({rlResistor, 1}, {rlGround, 0}) &&
+          analogRl.validate(),
+          "DC-source RL circuit is complete and DRC-valid");
+    analogRl.startSimulation();
+    analogRl.updateSimulation(0.001);
+    const std::vector<WireView> rlWires = analogRl.wireViews();
+    bool rlResolved = rlWires.size() == 4;
+    for (const WireView& wire : rlWires)
+        rlResolved = wire.state != WireLogicState::Floating &&
+                     std::isfinite(wire.voltage) && rlResolved;
+    check(rlResolved && rlWires[2].voltage > 0.0 &&
+          rlWires[2].voltage < 5.0,
+          "inductor follows a finite RL transient and resolves both terminals");
+    analogRl.stopSimulation();
+
+    BackendAdapter adcCircuit;
+    const int adcGround = adcCircuit.addComponent(7, "GND1", "0V", {0.0, 100.0});
+    const int adcReference = adcCircuit.addComponent(9, "VREF", "5V", {0.0, 0.0});
+    const int adcInput = adcCircuit.addComponent(9, "VIN", "2.5V", {0.0, 50.0});
+    const int adc = adcCircuit.addComponent(17, "ADC1", "4 BIT", {120.0, 20.0});
+    check(adcCircuit.connectPins({adcReference, 0}, {adcGround, 0}) &&
+          adcCircuit.connectPins({adcReference, 1}, {adc, 1}) &&
+          adcCircuit.connectPins({adcInput, 0}, {adcGround, 0}) &&
+          adcCircuit.connectPins({adcInput, 1}, {adc, 0}) &&
+          adcCircuit.connectPins({adc, 2}, {adcGround, 0}) &&
+          adcCircuit.validate(),
+          "ADC input and both references are wired to solved analog nets");
+    adcCircuit.startSimulation();
+    adcCircuit.updateSimulation(0.001);
+    check(adcCircuit.runtimeComponentValue(adc) == "CODE 8",
+          "ADC converts a live 2.5 V net to the expected 4-bit code");
+    adcCircuit.stopSimulation();
+
+    BackendAdapter dacCircuit;
+    const int dacGround = dacCircuit.addComponent(7, "GND1", "0V", {0.0, 120.0});
+    const int dacReference = dacCircuit.addComponent(9, "VREF", "5V", {0.0, 0.0});
+    const int dac = dacCircuit.addComponent(18, "DAC1", "4 BIT", {160.0, 20.0});
+    const int bit0 = dacCircuit.addComponent(10, "B0", "RELEASED", {0.0, 20.0});
+    const int bit1 = dacCircuit.addComponent(10, "B1", "PRESSED", {0.0, 40.0});
+    const int bit2 = dacCircuit.addComponent(10, "B2", "RELEASED", {0.0, 60.0});
+    const int bit3 = dacCircuit.addComponent(10, "B3", "PRESSED", {0.0, 80.0});
+    const int dacLoad = dacCircuit.addComponent(0, "RLOAD", "1K", {280.0, 20.0});
+    check(dacCircuit.connectPins({dacReference, 0}, {dacGround, 0}) &&
+          dacCircuit.connectPins({dacReference, 1}, {dac, 4}) &&
+          dacCircuit.connectPins({dac, 5}, {dacGround, 0}) &&
+          dacCircuit.connectPins({bit0, 0}, {dac, 0}) &&
+          dacCircuit.connectPins({bit1, 0}, {dac, 1}) &&
+          dacCircuit.connectPins({bit2, 0}, {dac, 2}) &&
+          dacCircuit.connectPins({bit3, 0}, {dac, 3}) &&
+          dacCircuit.connectPins({dac, 6}, {dacLoad, 0}) &&
+          dacCircuit.connectPins({dacLoad, 1}, {dacGround, 0}) &&
+          dacCircuit.validate(),
+          "DAC data, references and analog load are fully wired");
+    dacCircuit.startSimulation();
+    dacCircuit.updateSimulation(0.001);
+    const double dacVoltage = std::stod(dacCircuit.runtimeComponentValue(dac));
+    bool dacNetsResolved = true;
+    for (const WireView& wire : dacCircuit.wireViews())
+        dacNetsResolved = wire.state != WireLogicState::Floating &&
+                          std::isfinite(wire.voltage) && dacNetsResolved;
+    check(dacNetsResolved && dacVoltage > 3.2 && dacVoltage < 3.5,
+          "DAC code 0b1010 drives the loaded analog net near 3.33 V");
+    dacCircuit.stopSimulation();
+
+    BackendAdapter digitalCircuit;
+    const int digitalGround = digitalCircuit.addComponent(7, "GND1", "0V", {0.0, 160.0});
+    const int digitalHigh = digitalCircuit.addComponent(10, "HIGH", "PRESSED", {0.0, 0.0});
+    const int digitalLow = digitalCircuit.addComponent(10, "LOW", "RELEASED", {0.0, 30.0});
+    const int digitalClock = digitalCircuit.addComponent(3, "CLK1", "1KHZ", {0.0, 60.0});
+    const int andGate = digitalCircuit.addComponent(5, "AND1", "2 INPUTS", {100.0, 0.0});
+    const int orGate = digitalCircuit.addComponent(12, "OR1", "2 INPUTS", {100.0, 40.0});
+    const int xorGate = digitalCircuit.addComponent(14, "XOR1", "2 INPUTS", {100.0, 80.0});
+    const int nandGate = digitalCircuit.addComponent(15, "NAND1", "2 INPUTS", {100.0, 120.0});
+    const int notGate = digitalCircuit.addComponent(13, "NOT1", "INVERTER", {100.0, 160.0});
+    const int flipFlop = digitalCircuit.addComponent(16, "FF1", "D TYPE", {100.0, 200.0});
+    const int segment = digitalCircuit.addComponent(11, "SEG1", "0", {240.0, 80.0});
+    const bool digitalWired =
+          digitalCircuit.connectPins({digitalClock, 1}, {digitalGround, 0}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {andGate, 0}) &&
+          digitalCircuit.connectPins({digitalLow, 0}, {andGate, 1}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {orGate, 0}) &&
+          digitalCircuit.connectPins({digitalLow, 0}, {orGate, 1}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {xorGate, 0}) &&
+          digitalCircuit.connectPins({digitalLow, 0}, {xorGate, 1}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {nandGate, 0}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {nandGate, 1}) &&
+          digitalCircuit.connectPins({digitalLow, 0}, {notGate, 0}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {flipFlop, 0}) &&
+          digitalCircuit.connectPins({digitalClock, 0}, {flipFlop, 1}) &&
+          digitalCircuit.connectPins({andGate, 2}, {segment, 0}) &&
+          digitalCircuit.connectPins({orGate, 2}, {segment, 1}) &&
+          digitalCircuit.connectPins({xorGate, 2}, {segment, 2}) &&
+          digitalCircuit.connectPins({nandGate, 2}, {segment, 3}) &&
+          digitalCircuit.connectPins({notGate, 1}, {segment, 4}) &&
+          digitalCircuit.connectPins({flipFlop, 2}, {segment, 5}) &&
+          digitalCircuit.connectPins({digitalGround, 0}, {segment, 6}) &&
+          digitalCircuit.connectPins({digitalHigh, 0}, {segment, 7});
+    check(digitalWired && digitalCircuit.validate(),
+          "all logic gates, D flip-flop and seven-segment inputs pass DRC");
+    digitalCircuit.startSimulation();
+    digitalCircuit.updateSimulation(0.001);
+    check(digitalCircuit.runtimeComponentValue(segment) == "SEG ON:5",
+          "mixed simulation settles AND/OR/XOR/NAND/NOT/DFF into seven-segment state");
+    digitalCircuit.stopSimulation();
+
+    BackendAdapter meters;
+    const int meterGround = meters.addComponent(7, "GND1", "0V", {0.0, 80.0});
+    const int meterBattery = meters.addComponent(2, "BAT1", "9V", {0.0, 0.0});
+    const int ammeter = meters.addComponent(24, "AM1", "AUTO", {80.0, 0.0});
+    const int meterResistor = meters.addComponent(0, "R1", "1K", {160.0, 0.0});
+    const int voltmeter = meters.addComponent(23, "VM1", "AUTO", {160.0, 60.0});
+    check(meters.connectPins({meterBattery, 0}, {meterGround, 0}) &&
+          meters.connectPins({meterBattery, 1}, {ammeter, 0}) &&
+          meters.connectPins({ammeter, 1}, {meterResistor, 0}) &&
+          meters.connectPins({meterResistor, 1}, {meterGround, 0}) &&
+          meters.connectPins({voltmeter, 0}, {meterResistor, 0}) &&
+          meters.connectPins({voltmeter, 1}, {meterGround, 0}) &&
+          meters.validate(),
+          "ammeter and voltmeter circuit is wired and referenced");
+    meters.startSimulation();
+    meters.updateSimulation(0.001);
+    check(std::stod(meters.runtimeComponentValue(ammeter)) > 0.008 &&
+          std::stod(meters.runtimeComponentValue(voltmeter)) > 8.9,
+          "measurement components expose live solved current and voltage");
+    meters.stopSimulation();
 
     BackendAdapter interactive;
     const int liveButton = interactive.addComponent(

@@ -10,6 +10,7 @@ Component::~Component() {
 
 void Component::addPin(double x, double y) {
     pins.push_back(Pin(x, y, this));
+    pins.back().id = static_cast<int>(pins.size()) - 1;
 }
 
 Vector2D Component::pinWorldPos(const Vector2D& local) const {

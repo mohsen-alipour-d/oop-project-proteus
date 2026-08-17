@@ -47,7 +47,7 @@ struct WireView
     std::vector<WorldPoint> points;
     WireLogicState state = WireLogicState::Floating;
     double voltage = 0.0;
-    bool driven = false;
+    bool voltageResolved = false;
 };
 
 struct ScopeChannelView

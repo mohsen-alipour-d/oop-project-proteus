@@ -13,5 +13,6 @@ public:
 
     bool checkShorts(Circuit& c);
     bool checkFloating(Circuit& c);
+    bool checkReferences(Circuit& c);
     bool validate(Circuit& c);
 };
